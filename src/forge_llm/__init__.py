@@ -22,6 +22,7 @@ from forge_llm.domain.exceptions import (
     ValidationError,
 )
 from forge_llm.domain.value_objects import Message, TokenUsage, ToolDefinition
+from forge_llm.providers.auto_fallback_provider import AllProvidersFailedError
 from forge_llm.providers.registry import ProviderNotFoundError, ProviderRegistry
 
 __version__ = "0.1.0"
@@ -48,6 +49,7 @@ __all__ = [
     "ProviderNotFoundError",
     "ToolNotFoundError",
     "ToolCallNotFoundError",
+    "AllProvidersFailedError",
     # Version
     "__version__",
 ]

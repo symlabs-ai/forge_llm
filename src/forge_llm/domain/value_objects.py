@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from forge_llm.domain.exceptions import ValidationError
 
 # Type alias for message content - using Union for forward reference compatibility
-MessageContent = str | list[str | "ImageContent"]
+# X | Y syntax causes TypeError at runtime with forward references
+MessageContent = Union[str, list[Union[str, "ImageContent"]]]  # noqa: UP007
 
 
 @dataclass(frozen=True, eq=True)
