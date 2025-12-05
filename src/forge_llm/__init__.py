@@ -22,6 +22,14 @@ from forge_llm.domain.exceptions import (
     ValidationError,
 )
 from forge_llm.domain.value_objects import Message, TokenUsage, ToolDefinition
+from forge_llm.mcp import MCPClient, MCPServerConfig, MCPTool, MCPToolAdapter
+from forge_llm.mcp.exceptions import (
+    MCPConnectionError,
+    MCPError,
+    MCPServerNotConnectedError,
+    MCPToolExecutionError,
+    MCPToolNotFoundError,
+)
 from forge_llm.providers.auto_fallback_provider import AllProvidersFailedError
 from forge_llm.providers.registry import ProviderNotFoundError, ProviderRegistry
 
@@ -39,6 +47,11 @@ __all__ = [
     "Message",
     "TokenUsage",
     "ToolDefinition",
+    # MCP
+    "MCPClient",
+    "MCPServerConfig",
+    "MCPTool",
+    "MCPToolAdapter",
     # Exceptions
     "ForgeError",
     "ValidationError",
@@ -50,6 +63,11 @@ __all__ = [
     "ToolNotFoundError",
     "ToolCallNotFoundError",
     "AllProvidersFailedError",
+    "MCPError",
+    "MCPConnectionError",
+    "MCPToolNotFoundError",
+    "MCPToolExecutionError",
+    "MCPServerNotConnectedError",
     # Version
     "__version__",
 ]
