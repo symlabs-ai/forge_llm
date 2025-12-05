@@ -16,7 +16,7 @@ from forge_llm.domain.exceptions import (
     RateLimitError,
     RetryExhaustedError,
 )
-from forge_llm.domain.value_objects import Message
+from forge_llm.domain.value_objects import Message, ResponseFormat
 from forge_llm.infrastructure.retry import RetryConfig, with_retry
 
 
@@ -173,6 +173,7 @@ class AutoFallbackProvider(ProviderPort):
         temperature: float,
         max_tokens: int | None,
         tools: list[dict[str, Any]] | None,
+        response_format: ResponseFormat | None,
         **kwargs: Any,
     ) -> ChatResponse:
         """Tenta um unico provider, com retry opcional."""
@@ -184,6 +185,7 @@ class AutoFallbackProvider(ProviderPort):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools,
+                response_format=response_format,
                 **kwargs,
             )
 
@@ -203,6 +205,7 @@ class AutoFallbackProvider(ProviderPort):
         temperature: float = 0.7,
         max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
+        response_format: ResponseFormat | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
         """
@@ -225,6 +228,7 @@ class AutoFallbackProvider(ProviderPort):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     tools=tools,
+                    response_format=response_format,
                     **kwargs,
                 )
 
@@ -264,6 +268,7 @@ class AutoFallbackProvider(ProviderPort):
         temperature: float = 0.7,
         max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
+        response_format: ResponseFormat | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """
@@ -289,6 +294,7 @@ class AutoFallbackProvider(ProviderPort):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     tools=tools,
+                    response_format=response_format,
                     **kwargs,
                 )
 

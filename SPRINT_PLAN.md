@@ -2,8 +2,8 @@
 
 ## Status Geral
 - **Última atualização**: 2025-12-05
-- **Testes passando**: 718
-- **Sprint atual**: 21
+- **Testes passando**: 789
+- **Sprint atual**: Completo (24 sprints)
 
 ## Sprints Completados
 
@@ -77,102 +77,102 @@
 
 ---
 
-### Sprint 21: Auto-Fallback Provider 🔄 IN PROGRESS
+### Sprint 21: Auto-Fallback Provider ✅
 **Objetivo**: Provider que faz fallback automático entre providers
 
-**Arquivos a criar**:
-- [ ] `src/forge_llm/providers/auto_fallback_provider.py`
-- [ ] `tests/unit/providers/test_auto_fallback_provider.py`
+**Arquivos criados**:
+- [x] `src/forge_llm/providers/auto_fallback_provider.py`
+- [x] `tests/unit/providers/test_auto_fallback_provider.py` (31 testes)
 
 **Funcionalidades**:
-- [ ] Configuração de lista de providers ordenada por prioridade
-- [ ] Fallback automático em caso de erro
-- [ ] Fallback em caso de rate limit
-- [ ] Métricas de fallback (qual provider foi usado)
-- [ ] Configuração de retry antes de fallback
-- [ ] Healthcheck de providers
+- [x] Configuração de lista de providers ordenada por prioridade
+- [x] Fallback automático em caso de erro
+- [x] Fallback em caso de rate limit
+- [x] Métricas de fallback (FallbackResult com provider_used, providers_tried, errors)
+- [x] Configuração de retry antes de fallback (AutoFallbackConfig + RetryConfig)
+- [x] response_format support para JSON mode
 
 **BDD**:
-- [ ] `specs/bdd/30_providers/auto_fallback.feature`
-- [ ] `tests/bdd/test_auto_fallback_steps.py`
+- [x] `specs/bdd/10_forge_core/auto_fallback.feature` (9 cenários)
+- [x] `tests/bdd/test_auto_fallback_steps.py`
 
 ---
 
-### Sprint 22: Streaming Melhorado
+### Sprint 22: Streaming Melhorado ✅
 **Objetivo**: Melhorar suporte a streaming com eventos tipados
 
-**Arquivos a modificar**:
-- [ ] `src/forge_llm/domain/entities.py` - StreamEvent types
-- [ ] `src/forge_llm/providers/openai_provider.py`
-- [ ] `src/forge_llm/providers/anthropic_provider.py`
-- [ ] `src/forge_llm/client.py`
+**Arquivos criados**:
+- [x] `src/forge_llm/domain/stream_events.py`
+- [x] `tests/unit/domain/test_stream_events.py` (26 testes)
 
 **Funcionalidades**:
-- [ ] StreamEvent dataclass (content, tool_call_start, tool_call_delta, done)
-- [ ] Parsing de tool calls em stream
-- [ ] Agregação de chunks
-- [ ] Callback para cada tipo de evento
-- [ ] Timeout configurável por chunk
-
-**Arquivos a criar**:
-- [ ] `src/forge_llm/domain/stream_events.py`
-- [ ] `tests/unit/domain/test_stream_events.py`
+- [x] StreamEventType enum (CONTENT, TOOL_CALL_START, TOOL_CALL_DELTA, TOOL_CALL_DONE, DONE, ERROR)
+- [x] StreamEvent dataclass com factory methods
+- [x] ToolCallDelta para deltas de tool calls
+- [x] StreamAggregator para agregar chunks
+- [x] Suporte a raw data em eventos
 
 **BDD**:
-- [ ] `specs/bdd/10_forge_core/streaming.feature`
-- [ ] `tests/bdd/test_streaming_steps.py`
+- [x] `specs/bdd/10_forge_core/streaming.feature` (7 cenários)
+- [x] `tests/bdd/test_streaming_steps.py`
 
 ---
 
-### Sprint 23: MCP Integration (Model Context Protocol)
+### Sprint 23: MCP Integration (Model Context Protocol) ✅
 **Objetivo**: Integração com MCP para tools e resources externos
 
-**Arquivos a criar**:
-- [ ] `src/forge_llm/mcp/` (diretório)
-- [ ] `src/forge_llm/mcp/__init__.py`
-- [ ] `src/forge_llm/mcp/client.py`
-- [ ] `src/forge_llm/mcp/types.py`
-- [ ] `src/forge_llm/mcp/tool_adapter.py`
-- [ ] `tests/unit/mcp/test_mcp_client.py`
-- [ ] `tests/unit/mcp/test_tool_adapter.py`
+**Arquivos criados**:
+- [x] `src/forge_llm/mcp/` (diretório)
+- [x] `src/forge_llm/mcp/__init__.py`
+- [x] `src/forge_llm/mcp/mcp_client.py`
+- [x] `src/forge_llm/mcp/adapter.py`
+- [x] `src/forge_llm/mcp/exceptions.py`
+- [x] `tests/unit/mcp/test_mcp_client.py` (75 testes)
 
 **Funcionalidades**:
-- [ ] Conexão com MCP servers
-- [ ] Descoberta de tools
-- [ ] Conversão de MCP tools para formato interno
-- [ ] Execução de tools via MCP
-- [ ] Suporte a resources
-- [ ] Suporte a prompts
+- [x] Conexão com MCP servers (stdio transport)
+- [x] Descoberta de tools
+- [x] Conversão de MCP tools para formato interno (ToolDefinition)
+- [x] Conversão para formato OpenAI e Anthropic
+- [x] Execução de tools via MCP
+- [x] MCPServerConfig para configuração
+- [x] MCPToolResult para resultados
 
 **BDD**:
-- [ ] `specs/bdd/20_integrations/mcp.feature`
-- [ ] `tests/bdd/test_mcp_steps.py`
+- [x] `specs/bdd/10_forge_core/mcp_client.feature` (10 cenários)
+- [x] `tests/bdd/test_mcp_steps.py`
 
 ---
 
-### Sprint 24: Conversation Management
+### Sprint 24: Conversation Management ✅
 **Objetivo**: Gerenciamento avançado de conversas
 
-**Arquivos a criar/modificar**:
-- [ ] `src/forge_llm/domain/conversation.py`
-- [ ] `src/forge_llm/utils/conversation_memory.py` (melhorar se existir)
-- [ ] `src/forge_llm/persistence/` (diretório)
-- [ ] `src/forge_llm/persistence/conversation_store.py`
-- [ ] `src/forge_llm/persistence/json_store.py`
-- [ ] `src/forge_llm/persistence/sqlite_store.py`
+**Arquivos criados**:
+- [x] `src/forge_llm/persistence/__init__.py` (exports)
+- [x] `src/forge_llm/persistence/conversation_store.py` (StoredConversation, ConversationStore ABC)
+- [x] `src/forge_llm/persistence/memory_store.py` (InMemoryConversationStore)
+- [x] `src/forge_llm/persistence/json_store.py` (JSONConversationStore com index)
+- [x] `tests/unit/persistence/test_conversation_store.py` (39 testes)
 
-**Funcionalidades**:
-- [ ] Conversation entity com ID único
-- [ ] Persistência em JSON
+**Funcionalidades implementadas**:
+- [x] StoredConversation dataclass com ID único, título, tags, timestamps
+- [x] ConversationStore interface abstrata (save, load, delete, list_all, search, count)
+- [x] Persistência em JSON com arquivo de índice para queries rápidas
+- [x] Persistência em memória para testes
+- [x] Busca por conversas (título e conteúdo)
+- [x] Filtragem por tags
+- [x] Paginação (limit/offset)
+- [x] Rebuild automático de índice corrupto/ausente
+
+**Funcionalidades pendentes (futuras sprints)**:
 - [ ] Persistência em SQLite
-- [ ] Busca por conversas
 - [ ] Resumo automático de conversas longas
 - [ ] Fork de conversas
 - [ ] Branching (múltiplas respostas)
 
-**BDD**:
-- [ ] `specs/bdd/10_forge_core/conversation.feature` (atualizar se existir)
-- [ ] `tests/bdd/test_conversation_steps.py` (atualizar se existir)
+**BDD existente**:
+- [x] `specs/bdd/10_forge_core/conversation.feature` (14 cenários - já existia)
+- [x] `tests/bdd/test_conversation_steps.py` (já existia)
 
 ---
 

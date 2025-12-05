@@ -51,6 +51,12 @@ from forge_llm.observability import (
     StreamChunkEvent,
     UsageMetrics,
 )
+from forge_llm.persistence import (
+    ConversationStore,
+    InMemoryConversationStore,
+    JSONConversationStore,
+    StoredConversation,
+)
 from forge_llm.providers.auto_fallback_provider import AllProvidersFailedError
 from forge_llm.providers.registry import ProviderNotFoundError, ProviderRegistry
 
@@ -106,6 +112,11 @@ __all__ = [
     "ChatErrorEvent",
     "RetryEvent",
     "StreamChunkEvent",
+    # Persistence
+    "ConversationStore",
+    "StoredConversation",
+    "JSONConversationStore",
+    "InMemoryConversationStore",
     # Version
     "__version__",
 ]
