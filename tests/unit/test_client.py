@@ -213,14 +213,13 @@ class TestClientProperties:
         with pytest.raises(RuntimeError, match="Cliente nao configurado"):
             _ = client.model
 
-    def test_chat_raises_when_not_configured(self):
+    @pytest.mark.asyncio
+    async def test_chat_raises_when_not_configured(self):
         """chat raises when client not configured."""
         client = Client()
 
         with pytest.raises(RuntimeError, match="Cliente nao configurado"):
-            import asyncio
-
-            asyncio.get_event_loop().run_until_complete(client.chat("Hello"))
+            await client.chat("Hello")
 
 
 class TestClientConversation:
