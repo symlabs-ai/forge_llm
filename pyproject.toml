@@ -39,6 +39,9 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 
+[project.scripts]
+forge-llm = "forge_llm.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/symlabs-ai/forgellmclient"
 Documentation = "https://github.com/symlabs-ai/forgellmclient#readme"
