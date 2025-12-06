@@ -79,6 +79,13 @@ from forge_llm.persistence import (
 )
 from forge_llm.providers.auto_fallback_provider import AllProvidersFailedError
 from forge_llm.providers.registry import ProviderNotFoundError, ProviderRegistry
+from forge_llm.utils import (
+    BatchProcessor,
+    ConversationMemory,
+    ResponseValidationError,
+    ResponseValidator,
+    TokenCounter,
+)
 from forge_llm.utils.summarizer import (
     ConversationSummarizer,
     NoOpSummarizer,
@@ -171,6 +178,12 @@ __all__ = [
     "SummarizerPort",
     "ConversationSummarizer",
     "NoOpSummarizer",
+    # Utils
+    "TokenCounter",
+    "ConversationMemory",
+    "ResponseValidator",
+    "ResponseValidationError",
+    "BatchProcessor",
     # Version
     "__version__",
 ]
