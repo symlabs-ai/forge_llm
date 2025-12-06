@@ -1,0 +1,109 @@
+site_name: ForgeLLM Documentation
+site_description: SDK Python para interface unificada com LLMs
+site_url: https://symlabs-ai.github.io/forgellmclient
+
+repo_name: symlabs-ai/forgellmclient
+repo_url: https://github.com/symlabs-ai/forgellmclient
+
+theme:
+  name: material
+  language: pt-BR
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            signature_crossrefs: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Basic Usage: guides/client-usage.md
+      - Conversations: guides/conversations.md
+      - Streaming: guides/streaming.md
+      - Tool Calling: guides/tool-calling.md
+      - JSON Mode: guides/json-mode.md
+      - Error Handling: guides/error-handling.md
+      - Auto Fallback: guides/auto-fallback.md
+      - Observability: guides/observability.md
+      - MCP Integration: guides/mcp-integration.md
+  - API Reference:
+      - Client: api/client.md
+      - Entities: api/entities.md
+      - Value Objects: api/value-objects.md
+      - Providers: api/providers.md
+      - Exceptions: api/exceptions.md
+      - Infrastructure: api/infrastructure.md
+      - Observability: api/observability.md
+      - MCP: api/mcp.md
+  - Advanced:
+      - Creating Providers: guides/creating-providers.md
+      - Domain Model: guides/domain-model.md
+      - Architecture: advanced/architecture.md
+  - Examples:
+      - Basic Chat: examples/basic-chat.md
+      - Streaming: examples/streaming.md
+      - Multi-turn Conversation: examples/conversation.md
+      - Tool Calling: examples/tool-calling.md
+      - JSON Mode: examples/json-mode.md
+      - Multiple Providers: examples/multiple-providers.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/symlabs-ai/forgellmclient
