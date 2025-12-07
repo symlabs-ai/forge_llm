@@ -99,6 +99,7 @@ nav:
       - Creating Providers: guides/creating-providers.md
       - Domain Model: guides/domain-model.md
       - Architecture: advanced/architecture.md
+      - Agent Discovery: guides/agent-discovery.md
   - Examples:
       - Basic Chat: examples/basic-chat.md
       - Streaming: examples/streaming.md
