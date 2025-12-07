@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from forge_llm.application.ports.conversation_client_port import ConversationClientPort
 from forge_llm.application.ports.provider_port import ProviderPort
 from forge_llm.domain.entities import ChatResponse, Conversation
 from forge_llm.domain.exceptions import ValidationError
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     from forge_llm.observability.manager import ObservabilityManager
 
 
-class Client:
+class Client(ConversationClientPort):
     """
     Cliente principal do ForgeLLMClient.
 

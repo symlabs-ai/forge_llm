@@ -16,6 +16,9 @@ from forge_llm.domain.value_objects import (
 )
 
 if TYPE_CHECKING:
+    from forge_llm.application.ports.conversation_client_port import (
+        ConversationClientPort,
+    )
     from forge_llm.application.ports.provider_port import ProviderPort
 
 
@@ -113,7 +116,7 @@ class Conversation:
 
     def __init__(
         self,
-        client: Any,
+        client: ConversationClientPort,
         system: str | None = None,
         max_messages: int | None = None,
         max_tokens: int | None = None,
@@ -123,13 +126,13 @@ class Conversation:
         Inicializar conversa.
 
         Args:
-            client: Cliente configurado para fazer chamadas
+            client: Cliente que implementa ConversationClientPort
             system: System prompt opcional
             max_messages: Limite maximo de mensagens no historico (None = sem limite)
             max_tokens: Limite maximo de tokens no historico (None = sem limite)
             model: Modelo para contagem de tokens (requerido se max_tokens)
         """
-        self._client = client
+        self._client: ConversationClientPort = client
         self._system_prompt = system
         self._max_messages = max_messages
         self._max_tokens = max_tokens
@@ -391,13 +394,15 @@ class Conversation:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], client: Any) -> Conversation:
+    def from_dict(
+        cls, data: dict[str, Any], client: ConversationClientPort
+    ) -> Conversation:
         """
         Restaurar conversa a partir de dicionario.
 
         Args:
             data: Dicionario serializado
-            client: Cliente configurado
+            client: Cliente que implementa ConversationClientPort
 
         Returns:
             Conversa restaurada
@@ -407,7 +412,9 @@ class Conversation:
         """
         # Validar que client implementa interface necessária
         if not hasattr(client, "chat") or not hasattr(client, "configure"):
-            raise ValidationError("Client deve implementar interface Client (chat, configure)")
+            raise ValidationError(
+                "Client deve implementar ConversationClientPort (chat, configure)"
+            )
 
         conv = cls(
             client=client,

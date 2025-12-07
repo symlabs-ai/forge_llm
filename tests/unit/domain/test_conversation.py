@@ -526,7 +526,7 @@ class TestEdgeCases:
             "messages": [],
         }
 
-        with pytest.raises(ValidationError, match="interface Client"):
+        with pytest.raises(ValidationError, match="ConversationClientPort"):
             Conversation.from_dict(data, invalid_client)
 
     def test_enhanced_message_from_dict_missing_message(self):
