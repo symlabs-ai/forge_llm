@@ -9,6 +9,7 @@ Exemplo de uso:
     print(response.content)
 """
 
+from forge_llm.application.ports.conversation_client_port import ConversationClientPort
 from forge_llm.client import Client
 from forge_llm.domain.entities import ChatResponse, Conversation, ToolCall
 from forge_llm.domain.exceptions import (
@@ -102,6 +103,8 @@ __version__ = "0.1.0"
 __all__ = [
     # Client
     "Client",
+    # Ports (Dependency Inversion)
+    "ConversationClientPort",
     # Registry
     "ProviderRegistry",
     # Entities
