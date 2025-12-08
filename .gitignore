@@ -1,6 +1,11 @@
 # Virtual environment
 .venv/
 
+# Environment variables (CRITICAL - contains API keys)
+.env
+.env.*
+!.env.example
+
 # Cache directories
 .pytest_cache/
 .ruff_cache/
@@ -24,6 +29,9 @@ build/
 *.swp
 *.swo
 
+# Claude Code
+.claude/
+
 # Temporary files
 temp/
 logs/
@@ -34,6 +42,9 @@ logs/
 htmlcov/
 coverage.xml
 
-# Generated docs
-docs/pitch_deck.pdf
-docs/site_forgellmclient.pdf
+# Generated docs (MkDocs)
+site/
+*.pdf
+
+# Misc
+=*
