@@ -76,8 +76,8 @@ class ProviderRegistry:
         """
         provider_class = cls.get(name)
 
-        # Mocks e auto-fallback nao precisam de api_key
-        if name in ("mock", "mock-tools", "mock-no-tokens", "mock-alt", "auto-fallback"):
+        # Mocks, auto-fallback e locais (ollama, llamacpp) nao precisam de api_key
+        if name in ("mock", "mock-tools", "mock-no-tokens", "mock-alt", "auto-fallback", "ollama", "llamacpp"):
             return provider_class(**kwargs)
 
         # Outros providers precisam de api_key
@@ -104,10 +104,13 @@ def _register_default_providers() -> None:
     """Registrar providers padrao."""
     from forge_llm.providers.anthropic_provider import AnthropicProvider
     from forge_llm.providers.auto_fallback_provider import AutoFallbackProvider
+    from forge_llm.providers.gemini_provider import GeminiProvider
+    from forge_llm.providers.llamacpp_provider import LlamaCppProvider
     from forge_llm.providers.mock_alt_provider import MockAltProvider
     from forge_llm.providers.mock_no_tokens_provider import MockNoTokensProvider
     from forge_llm.providers.mock_provider import MockProvider
     from forge_llm.providers.mock_tools_provider import MockToolsProvider
+    from forge_llm.providers.ollama_provider import OllamaProvider
     from forge_llm.providers.openai_provider import OpenAIProvider
     from forge_llm.providers.openrouter_provider import OpenRouterProvider
 
@@ -118,6 +121,9 @@ def _register_default_providers() -> None:
     ProviderRegistry.register("openai", OpenAIProvider)
     ProviderRegistry.register("anthropic", AnthropicProvider)
     ProviderRegistry.register("openrouter", OpenRouterProvider)
+    ProviderRegistry.register("gemini", GeminiProvider)
+    ProviderRegistry.register("ollama", OllamaProvider)
+    ProviderRegistry.register("llamacpp", LlamaCppProvider)
     ProviderRegistry.register("auto-fallback", AutoFallbackProvider)
 
 

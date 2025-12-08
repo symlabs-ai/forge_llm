@@ -71,11 +71,26 @@ class MockProvider(ProviderPort):
         """Numero de imagens recebidas na ultima chamada."""
         return self._images_received
 
-    def _count_images(self, messages: list[Message]) -> int:
-        """Contar imagens nas mensagens."""
+    def _count_images(self, messages: list[Message] | list[dict[str, Any]]) -> int:
+        """Contar imagens nas mensagens.
+
+        Suporta tanto objetos Message quanto dicts (para compatibilidade com hooks).
+        """
         count = 0
         for msg in messages:
-            if msg.has_images:
+            # Suportar tanto Message quanto dict
+            if isinstance(msg, dict):
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    # Contar items que parecem imagens
+                    for item in content:
+                        if isinstance(item, dict) and (
+                            item.get("type") == "image_url" or
+                            item.get("type") == "image" or
+                            "image" in item
+                        ) or hasattr(item, "url") or hasattr(item, "base64_data"):
+                            count += 1
+            elif hasattr(msg, "has_images") and msg.has_images:
                 count += len(msg.images)
         return count
 

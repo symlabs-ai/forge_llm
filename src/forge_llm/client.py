@@ -5,13 +5,15 @@ from __future__ import annotations
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self
 
 from forge_llm.application.ports.conversation_client_port import ConversationClientPort
 from forge_llm.application.ports.provider_port import ProviderPort
 from forge_llm.domain.entities import ChatResponse, Conversation
 from forge_llm.domain.exceptions import ValidationError
 from forge_llm.domain.value_objects import Message, ResponseFormat
+from forge_llm.infrastructure.hooks import HookContext, HookManager, HookType
 from forge_llm.infrastructure.retry import RetryConfig, with_retry
 from forge_llm.providers.registry import ProviderRegistry
 
@@ -44,6 +46,7 @@ class Client(ConversationClientPort):
         retry_delay: float = 1.0,
         retry_config: RetryConfig | None = None,
         observability: ObservabilityManager | None = None,
+        hooks: HookManager | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -57,11 +60,13 @@ class Client(ConversationClientPort):
             retry_delay: Delay base entre retries em segundos
             retry_config: Configuracao de retry customizada (sobrescreve max_retries/retry_delay)
             observability: Gerenciador de observabilidade para logging/metricas
+            hooks: Gerenciador de hooks para interceptar requests/responses
             **kwargs: Argumentos adicionais para o provider
         """
         self._provider: ProviderPort | None = None
         self._default_model = model
         self._observability = observability
+        self._hooks = hooks
         self._retry_config: RetryConfig | None = None
 
         # Configurar retry
@@ -178,6 +183,19 @@ class Client(ConversationClientPort):
         request_id = self._generate_request_id()
         start_time = time.perf_counter()
 
+        # Criar contexto para hooks
+        hook_context = self._create_hook_context(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools,
+            response_format=response_format,
+        )
+
+        # Executar hooks PRE_REQUEST
+        hook_context = await self._execute_hook(HookType.PRE_REQUEST, hook_context)
+
         # Emitir evento de início
         await self._emit_chat_start(
             request_id=request_id,
@@ -188,25 +206,45 @@ class Client(ConversationClientPort):
 
         async def _do_chat() -> ChatResponse:
             return await self._provider.chat(  # type: ignore[union-attr]
-                messages=messages,
-                model=model or self._default_model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tools=tools,
-                response_format=response_format,
+                messages=messages,  # Usar messages originais (objetos Message)
+                model=hook_context.model or self._default_model,
+                temperature=hook_context.temperature,
+                max_tokens=hook_context.max_tokens,
+                tools=hook_context.tools,
+                response_format=hook_context.response_format,
                 **kwargs,
             )
 
         try:
             response: ChatResponse
             if self._retry_config is not None:
+                # Criar callback para PRE_RETRY hook
+                async def on_retry_callback(
+                    attempt: int,
+                    max_attempts: int,
+                    delay: float,
+                    error: Exception,
+                    provider: str,
+                ) -> None:
+                    nonlocal hook_context
+                    hook_context.retry_count = attempt
+                    hook_context.error = error
+                    hook_context = await self._execute_hook(
+                        HookType.PRE_RETRY, hook_context
+                    )
+
                 response = await with_retry(
                     _do_chat,
                     self._retry_config,
                     self._provider.provider_name,
+                    on_retry=on_retry_callback if self._hooks else None,
                 )
             else:
                 response = await _do_chat()
+
+            # Executar hooks POST_RESPONSE
+            hook_context.response = response
+            hook_context = await self._execute_hook(HookType.POST_RESPONSE, hook_context)
 
             # Emitir evento de conclusão
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -219,6 +257,10 @@ class Client(ConversationClientPort):
             return response
 
         except Exception as e:
+            # Executar hooks ON_ERROR
+            hook_context.error = e
+            hook_context = await self._execute_hook(HookType.ON_ERROR, hook_context)
+
             # Emitir evento de erro
             latency_ms = (time.perf_counter() - start_time) * 1000
             await self._emit_chat_error(
@@ -257,16 +299,40 @@ class Client(ConversationClientPort):
 
         messages = self._normalize_messages(message)
 
-        async for chunk in self._provider.chat_stream(
+        # Criar contexto para hooks
+        hook_context = self._create_hook_context(
             messages=messages,
-            model=model or self._default_model,
+            model=model,
             temperature=temperature,
             max_tokens=max_tokens,
             tools=tools,
             response_format=response_format,
-            **kwargs,
-        ):
-            yield chunk
+        )
+
+        # Executar hooks PRE_STREAM
+        hook_context = await self._execute_hook(HookType.PRE_STREAM, hook_context)
+
+        try:
+            async for chunk in self._provider.chat_stream(
+                messages=messages,
+                model=hook_context.model or self._default_model,
+                temperature=hook_context.temperature,
+                max_tokens=hook_context.max_tokens,
+                tools=hook_context.tools,
+                response_format=hook_context.response_format,
+                **kwargs,
+            ):
+                # Executar hooks ON_STREAM_CHUNK para cada chunk
+                hook_context.stream_chunk = chunk
+                hook_context = await self._execute_hook(
+                    HookType.ON_STREAM_CHUNK, hook_context
+                )
+                yield chunk
+        except Exception as e:
+            # Executar hooks ON_ERROR
+            hook_context.error = e
+            hook_context = await self._execute_hook(HookType.ON_ERROR, hook_context)
+            raise
 
     def _normalize_messages(self, message: str | list[Message]) -> list[Message]:
         """Normalizar input para lista de Messages."""
@@ -282,6 +348,31 @@ class Client(ConversationClientPort):
         """Fechar conexoes."""
         if self._provider and hasattr(self._provider, "close"):
             await self._provider.close()
+
+    # Async context manager support
+
+    async def __aenter__(self) -> Self:
+        """
+        Enter async context manager.
+
+        Exemplo:
+            async with Client(provider="openai", api_key="...") as client:
+                response = await client.chat("Hello!")
+        """
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """
+        Exit async context manager.
+
+        Fecha conexoes automaticamente ao sair do contexto.
+        """
+        await self.close()
 
     # Métodos auxiliares de observabilidade
 
@@ -365,3 +456,41 @@ class Client(ConversationClientPort):
             retryable=retryable,
         )
         await self._observability.emit(event)
+
+    # Métodos auxiliares de hooks
+
+    def _create_hook_context(
+        self,
+        messages: list[Message],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        response_format: ResponseFormat | None = None,
+    ) -> HookContext:
+        """Criar contexto para hooks."""
+        # Converter Messages para dicts para o HookContext
+        messages_dict = [
+            {"role": msg.role, "content": msg.content}
+            for msg in messages
+        ]
+
+        return HookContext(
+            messages=messages_dict,
+            model=model or self._default_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools,
+            response_format=response_format,
+            provider_name=self._provider.provider_name if self._provider else "",
+        )
+
+    async def _execute_hook(
+        self,
+        hook_type: HookType,
+        context: HookContext,
+    ) -> HookContext:
+        """Executar hooks se disponivel."""
+        if self._hooks is None:
+            return context
+        return await self._hooks.execute(hook_type, context)

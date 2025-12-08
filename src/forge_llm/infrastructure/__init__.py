@@ -9,6 +9,19 @@ from forge_llm.infrastructure.cache import (
     InMemoryCache,
     NoOpCache,
 )
+from forge_llm.infrastructure.hooks import (
+    HookAbortError,
+    HookContext,
+    HookFunction,
+    HookManager,
+    HookType,
+    create_content_filter_hook,
+    create_cost_tracker_hook,
+    create_rate_limit_hook,
+    logging_hook,
+    retry_logging_hook,
+    timing_hook,
+)
 from forge_llm.infrastructure.rate_limiter import (
     CompositeRateLimiter,
     NoOpRateLimiter,
@@ -49,4 +62,16 @@ __all__ = [
     "NoOpRateLimiter",
     "CompositeRateLimiter",
     "create_rate_limiter",
+    # Hooks
+    "HookType",
+    "HookContext",
+    "HookFunction",
+    "HookManager",
+    "HookAbortError",
+    "logging_hook",
+    "timing_hook",
+    "retry_logging_hook",
+    "create_rate_limit_hook",
+    "create_content_filter_hook",
+    "create_cost_tracker_hook",
 ]

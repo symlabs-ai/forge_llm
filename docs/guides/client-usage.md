@@ -614,6 +614,38 @@ Para mais detalhes, veja [Guia de Auto-Fallback](auto-fallback.md).
 
 ---
 
+## 15. Hooks e Middleware
+
+### 15.1 Interceptando Requests
+
+```python
+from forge_llm import Client
+from forge_llm.infrastructure.hooks import HookManager, HookType, HookContext
+
+async def logging_hook(context: HookContext) -> HookContext:
+    """Logar todas as requests."""
+    print(f"Request para {context.provider_name}: {len(context.messages)} mensagens")
+    return context
+
+# Configurar hooks
+hooks = HookManager()
+hooks.register(HookType.PRE_REQUEST, logging_hook)
+
+# Usar com client
+client = Client(
+    provider="openai",
+    api_key="sk-...",
+    hooks=hooks
+)
+
+# Hooks sao executados automaticamente
+response = await client.chat("Ola!")
+```
+
+Para mais detalhes, veja [Guia de Hooks e Middleware](hooks-middleware.md).
+
+---
+
 ## Recursos Adicionais
 
 - [Guia do Modelo de Dominio](domain-model.md) - Entidades e Value Objects
@@ -622,7 +654,9 @@ Para mais detalhes, veja [Guia de Auto-Fallback](auto-fallback.md).
 - [Guia de Observabilidade](observability.md) - Logging e metricas
 - [Guia de Integracao MCP](mcp-integration.md) - Tools externas via MCP
 - [Guia de Auto-Fallback](auto-fallback.md) - Alta disponibilidade
+- [Guia de Hooks e Middleware](hooks-middleware.md) - Interceptar requests/responses
+- [Guia do Google Gemini](gemini-provider.md) - Configuracao e uso do Gemini Provider
 
 ---
 
-**Versao**: ForgeLLMClient 0.1.0
+**Versao**: ForgeLLMClient 0.2.0

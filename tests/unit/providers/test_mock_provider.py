@@ -175,3 +175,237 @@ class TestMockProvider:
         async for _ in provider.chat_stream(messages):
             pass
         assert provider.call_count == 1
+
+
+class TestMockProviderImageCounting:
+    """Testes para contagem de imagens em MockProvider."""
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_message_objects(self):
+        """MockProvider deve contar imagens em objetos Message."""
+        from forge_llm.domain.value_objects import ImageContent, Message
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    "Descreva esta imagem",
+                    ImageContent(
+                        base64_data="fake_data",
+                        media_type="image/png",
+                    ),
+                ],
+            )
+        ]
+
+        await provider.chat(messages)
+        assert provider.images_received == 1
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_multiple_images(self):
+        """MockProvider deve contar multiplas imagens."""
+        from forge_llm.domain.value_objects import ImageContent, Message
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    "Compare estas imagens",
+                    ImageContent(base64_data="img1", media_type="image/png"),
+                    ImageContent(base64_data="img2", media_type="image/png"),
+                ],
+            )
+        ]
+
+        await provider.chat(messages)
+        assert provider.images_received == 2
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_dict_messages_image_url_type(self):
+        """MockProvider deve contar imagens em dicts com type='image_url'."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        # Simula mensagens como dicts (formato HookContext)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Descreva esta imagem"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/image.png"},
+                    },
+                ],
+            }
+        ]
+
+        count = provider._count_images(messages)
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_dict_messages_image_type(self):
+        """MockProvider deve contar imagens em dicts com type='image'."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Descreva"},
+                    {"type": "image", "data": "base64_data"},
+                ],
+            }
+        ]
+
+        count = provider._count_images(messages)
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_dict_messages_image_key(self):
+        """MockProvider deve contar imagens em dicts com chave 'image'."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Descreva"},
+                    {"image": "base64_data"},
+                ],
+            }
+        ]
+
+        count = provider._count_images(messages)
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_dict_string_content(self):
+        """MockProvider deve retornar 0 para conteudo string."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [{"role": "user", "content": "Texto simples sem imagens"}]
+
+        count = provider._count_images(messages)
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_count_images_with_mixed_messages(self):
+        """MockProvider deve contar imagens em mix de Messages e dicts."""
+        from forge_llm.domain.value_objects import ImageContent, Message
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    "Imagem 1",
+                    ImageContent(base64_data="data1", media_type="image/png"),
+                ],
+            ),
+        ]
+
+        await provider.chat(messages)
+        assert provider.images_received == 1
+
+    @pytest.mark.asyncio
+    async def test_count_images_empty_list(self):
+        """MockProvider deve retornar 0 para lista vazia."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        count = provider._count_images([])
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_count_images_multiple_messages_with_images(self):
+        """MockProvider deve somar imagens de multiplas mensagens."""
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Primeira"},
+                    {"type": "image_url", "image_url": {"url": "img1.png"}},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": "Resposta sem imagem",
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Segunda"},
+                    {"type": "image_url", "image_url": {"url": "img2.png"}},
+                    {"type": "image_url", "image_url": {"url": "img3.png"}},
+                ],
+            },
+        ]
+
+        count = provider._count_images(messages)
+        assert count == 3
+
+    @pytest.mark.asyncio
+    async def test_last_messages_stored(self):
+        """MockProvider deve armazenar ultimas mensagens recebidas."""
+        from forge_llm.domain.value_objects import Message
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            Message(role="system", content="Voce e um assistente"),
+            Message(role="user", content="Ola"),
+        ]
+
+        await provider.chat(messages)
+
+        assert len(provider.last_messages) == 2
+        assert provider.last_messages[0].role == "system"
+        assert provider.last_messages[1].role == "user"
+
+    @pytest.mark.asyncio
+    async def test_reset_clears_images_received(self):
+        """MockProvider.reset deve limpar images_received."""
+        from forge_llm.domain.value_objects import ImageContent, Message
+        from forge_llm.providers import MockProvider
+
+        provider = MockProvider()
+
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    "Imagem",
+                    ImageContent(base64_data="data", media_type="image/png"),
+                ],
+            )
+        ]
+
+        await provider.chat(messages)
+        assert provider.images_received == 1
+
+        provider.reset()
+        assert provider.images_received == 0
+        assert provider.call_count == 0
+        assert len(provider.last_messages) == 0
