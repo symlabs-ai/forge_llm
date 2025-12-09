@@ -108,6 +108,6 @@ e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/
 
 ## Links
 
-- [Repositorio](https://github.com/seu-usuario/forgellmclient)
-- [Documentacao](https://seu-usuario.github.io/forgellmclient/)
-- [Issues](https://github.com/seu-usuario/forgellmclient/issues)
+- [Repositorio](https://github.com/symlabs-ai/forge_llm)
+- [Documentacao](https://symlabs-ai.github.io/forge_llm/)
+- [Issues](https://github.com/symlabs-ai/forge_llm/issues)

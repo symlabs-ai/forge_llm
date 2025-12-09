@@ -103,9 +103,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/symlabs-ai/forgellmclient"
-Documentation = "https://github.com/symlabs-ai/forgellmclient#readme"
-Repository = "https://github.com/symlabs-ai/forgellmclient"
+Homepage = "https://github.com/symlabs-ai/forge_llm"
+Documentation = "https://github.com/symlabs-ai/forge_llm#readme"
+Repository = "https://github.com/symlabs-ai/forge_llm"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

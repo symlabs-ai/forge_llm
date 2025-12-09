@@ -65,7 +65,7 @@ def forge_client(forge_config):
     TODO: Implementar quando o cliente existir.
     """
     pytest.skip("Aguardando implementacao do ForgeLLMClient")
-    # from forgellmclient import Client
+    # from forge_llm import Client
     # return Client(**forge_config)
 
 
@@ -77,7 +77,7 @@ def forge_client_unconfigured():
     TODO: Implementar quando o cliente existir.
     """
     pytest.skip("Aguardando implementacao do ForgeLLMClient")
-    # from forgellmclient import Client
+    # from forge_llm import Client
     # return Client()
 
 

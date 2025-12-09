@@ -29,8 +29,8 @@
 
 ```bash
 # Clone o repositorio
-git clone https://github.com/symlabs-ai/forgellmclient.git
-cd forgellmclient
+git clone https://github.com/symlabs-ai/forge_llm.git
+cd forge_llm
 
 # Crie um ambiente virtual
 python -m venv .venv

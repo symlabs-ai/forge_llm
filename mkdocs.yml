@@ -1,9 +1,9 @@
 site_name: ForgeLLM Documentation
 site_description: SDK Python para interface unificada com LLMs
-site_url: https://symlabs-ai.github.io/forgellmclient
+site_url: https://symlabs-ai.github.io/forge_llm
 
-repo_name: symlabs-ai/forgellmclient
-repo_url: https://github.com/symlabs-ai/forgellmclient
+repo_name: symlabs-ai/forge_llm
+repo_url: https://github.com/symlabs-ai/forge_llm
 
 theme:
   name: material
@@ -111,4 +111,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/symlabs-ai/forgellmclient
+      link: https://github.com/symlabs-ai/forge_llm

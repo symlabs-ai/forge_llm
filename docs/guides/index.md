@@ -19,7 +19,16 @@ ForgeLLM e uma biblioteca Python que oferece uma interface unificada para trabal
 ## Instalacao Rapida
 
 ```bash
-pip install forge-llm
+# Via Git (recomendado)
+pip install git+https://github.com/symlabs-ai/forge_llm.git
+
+# Ou clonar e instalar localmente
+git clone https://github.com/symlabs-ai/forge_llm.git
+cd forge_llm
+pip install -e .
+
+# Via PyPI (em breve)
+# pip install forge-llm
 ```
 
 ## Exemplo Basico

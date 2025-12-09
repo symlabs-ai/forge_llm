@@ -28,6 +28,23 @@ ForgeLLM oferece uma API consistente para trabalhar com diferentes provedores de
 
 ## Instalacao
 
+### Via Git (recomendado)
+
+```bash
+# Instalar diretamente do repositorio
+pip install git+https://github.com/symlabs-ai/forge_llm.git
+
+# Ou com extras para Gemini
+pip install "git+https://github.com/symlabs-ai/forge_llm.git#egg=forge-llm[gemini]"
+
+# Ou clonar e instalar localmente
+git clone https://github.com/symlabs-ai/forge_llm.git
+cd forge_llm
+pip install -e .
+```
+
+### Via PyPI (em breve)
+
 ```bash
 pip install forge-llm
 ```
@@ -243,8 +260,8 @@ forge-llm models --provider openai
 
 ```bash
 # Clone
-git clone https://github.com/seu-usuario/forgellmclient.git
-cd forgellmclient
+git clone https://github.com/symlabs-ai/forge_llm.git
+cd forge_llm
 
 # Instalar dependencias
 pip install -e ".[dev]"

@@ -6,14 +6,28 @@ Este guia explica como usar o ForgeLLMClient para interagir com diferentes prove
 
 ## 1. Instalacao
 
+### Via Git (recomendado)
+
 ```bash
-pip install forge-llm
+# Instalar diretamente do repositorio
+pip install git+https://github.com/symlabs-ai/forge_llm.git
+
+# Com extras para Gemini
+pip install "git+https://github.com/symlabs-ai/forge_llm.git#egg=forge-llm[gemini]"
 ```
 
-Ou para desenvolvimento:
+### Instalacao local (desenvolvimento)
 
 ```bash
+git clone https://github.com/symlabs-ai/forge_llm.git
+cd forge_llm
 pip install -e ".[dev]"
+```
+
+### Via PyPI (em breve)
+
+```bash
+pip install forge-llm
 ```
 
 ---
