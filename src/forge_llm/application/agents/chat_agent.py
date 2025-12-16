@@ -349,6 +349,9 @@ class ChatAgent:
         if self._provider_name == "anthropic":
             from forge_llm.infrastructure.providers import AnthropicAdapter
             return AnthropicAdapter(self._config)
+        if self._provider_name == "ollama":
+            from forge_llm.infrastructure.providers import OllamaAdapter
+            return OllamaAdapter(self._config)
         from forge_llm.domain import UnsupportedProviderError
         raise UnsupportedProviderError(self._provider_name)
 

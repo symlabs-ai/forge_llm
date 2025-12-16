@@ -27,13 +27,14 @@ class ProviderError(ForgeLLMError):
 
 
 class ProviderNotConfiguredError(ProviderError):
-    """Provider is not properly configured (missing API key)."""
+    """Provider is not properly configured (missing API key or connection)."""
 
-    def __init__(self, provider: str) -> None:
-        super().__init__(
-            f"Provider '{provider}' is not configured. Check API key.",
-            code="PROVIDER_NOT_CONFIGURED",
-        )
+    def __init__(self, provider: str, detail: str | None = None) -> None:
+        if detail:
+            msg = f"Provider '{provider}' is not configured: {detail}"
+        else:
+            msg = f"Provider '{provider}' is not configured. Check API key."
+        super().__init__(msg, code="PROVIDER_NOT_CONFIGURED")
         self.provider = provider
 
 
