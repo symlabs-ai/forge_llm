@@ -1,0 +1,196 @@
+current_phase: execution.tdd   # mdd | bdd | execution.roadmap | execution.tdd | delivery.sprint | feedback
+current_cycle: cycle-01     # ex.: cycle-01
+current_sprint: null        # ex.: sprint-01
+
+last_completed_step: execution.roadmap.05.roadmap_backlog   # ex.: mdd.01.concepcao_visao
+next_recommended_step: execution.tdd.01.setup_projeto
+
+completed_steps:            # lista de IDs de etapas concluidas
+  - mdd.01.concepcao_visao
+  - mdd.02.sintese_executiva
+  - mdd.03.pitch_valor
+  - mdd.04.validacao_publica
+  - mdd.05.avaliacao_estrategica
+  - mdd.06.handoff_bdd
+  - bdd.01.mapeamento_comportamentos
+  - bdd.02.features_gherkin
+  - bdd.03.organizacao_tagging
+  - bdd.04.tracks_yml
+  - bdd.05.skeleton_automacao
+  - bdd.06.handoff_roadmap
+  - execution.roadmap.00.validacao_stakeholder
+  - execution.roadmap.01.stack_adr
+  - execution.roadmap.02.analise_dependencias
+  - execution.roadmap.03.quebra_features
+  - execution.roadmap.04.estimativas
+  - execution.roadmap.05.roadmap_backlog
+
+blocked: false
+blocked_reason: null
+blocked_by: null            # human | external_system | other
+
+# ========================================
+# Planejamento de Ciclos (visao macro)
+# ========================================
+# Preenchido durante Roadmap Planning (execution.roadmap.06.cycle_planning)
+# Fonte de verdade: project/specs/roadmap/CYCLE_PLAN.md
+
+cycle_planning:
+  total_cycles_planned: null          # ex.: 3
+  cycles_completed: 0                 # incrementado ao final de cada ciclo
+
+  # Estimativas consolidadas do produto
+  total_valuetracks: null             # ex.: 5
+  total_sprints_estimated: null       # ex.: 10
+
+  # Alocacao de ValueTracks por ciclo (resumo)
+  # Detalhes completos em project/specs/roadmap/CYCLE_PLAN.md
+  cycles:
+    # cycle-01:
+    #   name: "MVP Funcional"
+    #   valuetracks: [VT-01, VT-02]
+    #   sprints_estimated: 3
+    #   status: pending | in_progress | completed
+    # cycle-02:
+    #   name: "Capacidades Avancadas"
+    #   valuetracks: [VT-03, VT-04]
+    #   sprints_estimated: 4
+    #   status: pending
+
+  # Ciclo atual - detalhes
+  current_cycle_detail:
+    name: null
+    valuetracks: []                   # VTs sendo trabalhados neste ciclo
+    valuetracks_completed: []         # VTs ja concluidos neste ciclo
+    sprints_completed: 0
+    sprints_estimated: null
+
+# ========================================
+# Metricas Hibridas: Custo, Esforco, Prazo
+# ========================================
+# O ForgeProcess adota tres dimensoes independentes para desenvolvimento hibrido:
+#   - CUSTO: Quanto custa produzir (tokens x preco + horas x valor/hora)
+#   - ESFORCO: Quanto trabalho e necessario (tokens IA + horas humanas)
+#   - PRAZO: Quando estara pronto (tempo de ciclo em dias)
+#
+# PRINCIPIOS FUNDAMENTAIS:
+#   - Tokens medem custo, NAO tempo
+#   - Apenas "tempo de ciclo" responde "quando fica pronto?"
+#   - Paralelizacao reduz prazo (30-50%), NAO custo
+#   - Usar ranges (min/max), nunca valores fixos
+#
+# Referencia: docs/users/literature/forgeprocess-metricas-hibridas.md
+
+metricas:
+  # -------------------------------------------
+  # DIMENSAO 1: CUSTO (em USD)
+  # -------------------------------------------
+  # Responde: "Qual o orcamento?"
+  custo:
+    # Custo de processamento IA
+    tokens:
+      total_estimado: null            # ex.: 470000
+      total_consumido: 0
+      preco_por_1k_input: 0.003       # USD (ajustar conforme modelo)
+      preco_por_1k_output: 0.015      # USD
+      custo_estimado_usd: null        # ex.: 7.05
+      custo_consumido_usd: 0
+    # Custo de trabalho humano
+    horas:
+      total_estimadas: null           # ex.: 120
+      total_consumidas: 0
+      valor_hora_usd: 50.00           # ajustar conforme time
+      custo_estimado_usd: null        # ex.: 6000
+      custo_consumido_usd: 0
+    # Total consolidado
+    total_estimado_usd: null          # tokens + horas
+    total_consumido_usd: 0
+    variancia_percent: null           # ex.: +12%
+
+  # -------------------------------------------
+  # DIMENSAO 2: ESFORCO (trabalho total)
+  # -------------------------------------------
+  # Responde: "Quanto trabalho e necessario?"
+  esforco:
+    # Trabalho da IA (em tokens)
+    tokens_estimados: null            # ex.: 470000
+    tokens_consumidos: 0
+    # Trabalho humano (em horas)
+    horas_estimadas: null             # ex.: 120
+    horas_consumidas: 0
+    # Breakdown por tipo de atividade humana
+    breakdown_horas:
+      review: null                    # horas de code review
+      testes: null                    # horas de testes manuais/QA
+      arquitetura: null               # horas de decisoes arquiteturais
+      merge_deploy: null              # horas de integracao/deploy
+    variancia_tokens_percent: null
+    variancia_horas_percent: null
+
+  # -------------------------------------------
+  # DIMENSAO 3: PRAZO (tempo de ciclo)
+  # -------------------------------------------
+  # Responde: "Quando estara pronto?"
+  # IMPORTANTE: Sempre usar ranges (min/max), nunca valores fixos
+  prazo:
+    # Tempo de ciclo do produto completo
+    ciclo_estimado_dias:
+      min: null                       # ex.: 40
+      max: null                       # ex.: 60
+    dias_decorridos: 0
+    # Paralelizacao
+    paralelizacao:
+      agentes_paralelos: 1            # quantos agentes em paralelo
+      reducao_estimada_percent: 0     # ex.: 30 (30% de reducao)
+    # Data alvo (calculada a partir do tempo de ciclo)
+    data_inicio: null                 # ex.: 2025-01-15
+    data_alvo_entrega:
+      min: null                       # ex.: 2025-02-24
+      max: null                       # ex.: 2025-03-16
+    variancia_dias: null              # dias a mais/menos que estimado
+
+  # -------------------------------------------
+  # Ciclo atual - metricas detalhadas
+  # -------------------------------------------
+  ciclo_atual:
+    custo:
+      tokens_estimados: null
+      tokens_consumidos: 0
+      custo_ia_estimado_usd: null
+      custo_ia_consumido_usd: 0
+      horas_estimadas: null
+      horas_consumidas: 0
+      custo_humano_estimado_usd: null
+      custo_humano_consumido_usd: 0
+      custo_total_estimado_usd: null
+      custo_total_consumido_usd: 0
+    esforco:
+      tokens_estimados: null
+      tokens_consumidos: 0
+      horas_estimadas: null
+      horas_consumidas: 0
+    prazo:
+      tempo_ciclo_dias:
+        min: null
+        max: null
+      dias_decorridos: 0
+      data_inicio: null
+      data_alvo:
+        min: null
+        max: null
+
+# ----------------------------------------
+# LEGADO: Esforco em Tokens (DEPRECATED)
+# ----------------------------------------
+# @deprecated: Use metricas.esforco e metricas.custo
+# Mantido para compatibilidade retroativa
+tokens:
+  total_estimated: null               # @deprecated: usar metricas.esforco.tokens_estimados
+  total_consumed: 0                   # @deprecated: usar metricas.esforco.tokens_consumidos
+  variance_percent: null              # @deprecated: usar metricas.esforco.variancia_tokens_percent
+
+# ========================================
+# Flags de revisao de MDD
+# ========================================
+mdd_revision_needed: false            # true se feedback indicar necessidade de pivot
+mdd_revision_reason: null             # ex.: "KPIs nao atingidos por 2 ciclos consecutivos"

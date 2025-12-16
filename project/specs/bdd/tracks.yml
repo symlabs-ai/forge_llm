@@ -1,0 +1,344 @@
+# tracks.yml
+# Rastreabilidade entre ValueTracks e Features BDD
+#
+# Versao: 1.0
+# Data: 2025-12-16
+# Status: MVP (Fase 1)
+#
+# Referencias:
+#   - project/docs/visao.md (ValueTracks originais)
+#   - project/docs/aprovacao_mvp.md (Escopo MVP)
+#   - project/specs/bdd/drafts/behavior_mapping.md (Mapeamento aprovado)
+
+# ============================================
+# METADADOS DO MAPEAMENTO
+# ============================================
+
+metadata:
+  version: "1.0"
+  created: "2025-12-16"
+  phase: "MVP"
+  total_valuetracks: 6
+  total_scenarios: 31
+  domains:
+    - id: "10_core"
+      name: "Core SDK"
+      features: 5
+    - id: "20_providers"
+      name: "Provedores LLM"
+      features: 1
+
+# ============================================
+# VALUE TRACKS (Funcionalidades de Valor)
+# ============================================
+
+valuetracks:
+
+  # ------------------------------
+  # VT-01: PortableChat
+  # ------------------------------
+  - id: "VT-01"
+    name: "PortableChat"
+    type: "VALUE"
+    priority: "alta"
+    domain: "10_core"
+    description: |
+      Enviar mensagens para qualquer LLM com interface unica.
+      Suporta modo sincrono e streaming.
+    mdd_reference: "project/docs/visao.md:166"
+    feature_file: "10_core/chat.feature"
+    scenarios:
+      success:
+        - "Enviar mensagem sincrona e receber resposta"
+        - "Enviar mensagem com streaming e receber chunks"
+        - "Mesma interface funciona para provedores diferentes"
+      error:
+        - "Erro ao usar provedor nao configurado"
+        - "Erro ao configurar provedor invalido"
+        - "Timeout ao aguardar resposta do provedor"
+        - "Erro de autenticacao com API key invalida"
+      edge:
+        - "Rejeitar mensagem vazia"
+        - "Tratar resposta vazia do provedor"
+    tags:
+      - "@sdk"
+      - "@chat"
+      - "@ci-fast"
+    dependencies: []
+    scenario_count: 9
+
+  # ------------------------------
+  # VT-02: UnifiedTools
+  # ------------------------------
+  - id: "VT-02"
+    name: "UnifiedTools"
+    type: "VALUE"
+    priority: "alta"
+    domain: "10_core"
+    description: |
+      Tool Calling padronizado entre provedores.
+      Formato unico independente do provedor.
+    mdd_reference: "project/docs/visao.md:174"
+    feature_file: "10_core/tools.feature"
+    scenarios:
+      success:
+        - "Definir ferramenta com formato unico"
+        - "LLM solicita execucao de ferramenta"
+        - "Enviar resultado de ferramenta de volta ao LLM"
+      error:
+        - "LLM solicita ferramenta nao registrada"
+        - "Argumentos invalidos na chamada de ferramenta"
+      edge: []
+    tags:
+      - "@sdk"
+      - "@tools"
+      - "@ci-fast"
+    dependencies:
+      - "VT-01"  # Requer chat funcionando
+    scenario_count: 5
+
+# ============================================
+# SUPPORT TRACKS (Funcionalidades de Suporte)
+# ============================================
+
+supporttracks:
+
+  # ------------------------------
+  # ST-01: TokenUsage
+  # ------------------------------
+  - id: "ST-01"
+    name: "TokenUsage"
+    type: "SUPPORT"
+    priority: "alta"
+    domain: "10_core"
+    description: |
+      Informar consumo de tokens em cada requisicao.
+      Essencial para controle de custos.
+    mdd_reference: "project/docs/visao.md:127"
+    feature_file: "10_core/tokens.feature"
+    scenarios:
+      success:
+        - "Obter consumo de tokens da resposta sincrona"
+        - "Obter consumo de tokens em modo streaming"
+      error: []
+      edge:
+        - "Tratar ausencia de informacao de tokens"
+    tags:
+      - "@sdk"
+      - "@tokens"
+      - "@ci-fast"
+    supports:
+      - "VT-01"  # Complementa PortableChat
+    scenario_count: 3
+
+  # ------------------------------
+  # ST-02: ResponseNormalization
+  # ------------------------------
+  - id: "ST-02"
+    name: "ResponseNormalization"
+    type: "SUPPORT"
+    priority: "alta"
+    domain: "10_core"
+    description: |
+      Respostas de diferentes provedores sao normalizadas para formato unico.
+      Garante portabilidade do codigo cliente.
+    mdd_reference: "project/docs/aprovacao_mvp.md"
+    feature_file: "10_core/response.feature"
+    scenarios:
+      success:
+        - "Resposta tem formato consistente entre provedores"
+        - "Metadados do modelo estao disponiveis na resposta"
+      error: []
+      edge: []
+    tags:
+      - "@sdk"
+      - "@response"
+      - "@ci-fast"
+    supports:
+      - "VT-01"  # Normaliza respostas do chat
+    scenario_count: 2
+
+  # ------------------------------
+  # ST-03: ContextManager
+  # ------------------------------
+  - id: "ST-03"
+    name: "ContextManager"
+    type: "SUPPORT"
+    priority: "alta"
+    domain: "10_core"
+    description: |
+      Gerenciamento de sessao, historico de mensagens e compactacao de contexto.
+      Essencial para chat multi-turn.
+    mdd_reference: "project/specs/ARCHITECTURE_PROPOSAL_V2.md"
+    feature_file: "10_core/session.feature"
+    scenarios:
+      success:
+        - "Manter contexto entre mensagens na mesma sessao"
+        - "Historico enviado ao provedor em formato normalizado"
+        - "Detectar overflow de contexto"
+        - "Compactar contexto com estrategia truncate"
+        - "Isolar contexto entre sessoes diferentes"
+      error:
+        - "Erro ao acessar sessao inexistente"
+        - "Erro de overflow sem compactacao configurada"
+      edge:
+        - "Primeira mensagem em sessao nova"
+    tags:
+      - "@sdk"
+      - "@contexto"
+      - "@ci-fast"
+      - "@compactacao"
+    supports:
+      - "VT-01"  # Habilita chat multi-turn
+    mvp_scope:
+      included:
+        - "Sessoes com session_id"
+        - "Historico de mensagens normalizado"
+        - "Validacao de limite de tokens"
+        - "Compactacao basica (truncate)"
+      excluded:
+        - "Compactacao avancada (summarize, sliding_window)"
+        - "Persistencia de sessoes (FileSessionStorage)"
+        - "HotSwap entre provedores"
+    scenario_count: 8
+
+  # ------------------------------
+  # ST-04: ProviderSupport
+  # ------------------------------
+  - id: "ST-04"
+    name: "ProviderSupport"
+    type: "SUPPORT"
+    priority: "alta"
+    domain: "20_providers"
+    description: |
+      Implementacao de adaptadores para OpenAI e Anthropic.
+      Base para a portabilidade do SDK.
+    mdd_reference: "project/docs/aprovacao_mvp.md"
+    feature_file: "20_providers/providers.feature"
+    scenarios:
+      success:
+        - "Usar provedor OpenAI com GPT-4"
+        - "Usar provedor Anthropic com Claude 3"
+        - "Listar provedores disponiveis"
+      error:
+        - "Erro ao usar provedor sem API key"
+      edge: []
+    tags:
+      - "@sdk"
+      - "@providers"
+      - "@ci-int"
+    supports:
+      - "VT-01"  # Implementa adaptadores
+      - "VT-02"  # Suporta tool calling
+    providers:
+      - name: "openai"
+        models:
+          - "gpt-4"
+          - "gpt-3.5-turbo"
+      - name: "anthropic"
+        models:
+          - "claude-3-sonnet-20240229"
+          - "claude-3-haiku-20240307"
+          - "claude-3-opus-20240229"
+    scenario_count: 4
+
+# ============================================
+# MATRIZ DE RASTREABILIDADE
+# ============================================
+
+traceability:
+  # Mapeamento Feature -> Track
+  features_to_tracks:
+    "10_core/chat.feature": "VT-01"
+    "10_core/tools.feature": "VT-02"
+    "10_core/tokens.feature": "ST-01"
+    "10_core/response.feature": "ST-02"
+    "10_core/session.feature": "ST-03"
+    "20_providers/providers.feature": "ST-04"
+
+  # Grafo de dependencias
+  # CORRIGIDO por marc_arc em 2025-12-16: ST-04 é fundacional
+  dependency_graph:
+    "ST-04": []           # ProviderSupport - fundacional (base de tudo)
+    "VT-01": ["ST-04"]    # PortableChat depende de providers
+    "VT-02": ["VT-01"]    # UnifiedTools depende de chat
+    "ST-01": ["VT-01"]    # TokenUsage complementa chat
+    "ST-02": ["VT-01"]    # ResponseNorm complementa chat
+    "ST-03": ["VT-01"]    # ContextManager habilita multi-turn
+
+  # Ordem sugerida de implementacao
+  implementation_order:
+    - order: 1
+      track: "ST-04"
+      reason: "Adaptadores de provider sao a base"
+    - order: 2
+      track: "VT-01"
+      reason: "Chat unificado usa os adaptadores"
+    - order: 3
+      track: "ST-02"
+      reason: "Normalizacao de respostas do chat"
+    - order: 4
+      track: "ST-01"
+      reason: "Consumo de tokens por requisicao"
+    - order: 5
+      track: "ST-03"
+      reason: "Gestao de sessao para multi-turn"
+    - order: 6
+      track: "VT-02"
+      reason: "Tool calling sobre chat existente"
+
+# ============================================
+# RESUMO DE COBERTURA
+# ============================================
+
+coverage_summary:
+  by_type:
+    VALUE: 2      # VT-01, VT-02
+    SUPPORT: 4    # ST-01, ST-02, ST-03, ST-04
+  by_domain:
+    "10_core": 5
+    "20_providers": 1
+  by_scenario_type:
+    success: 18
+    error: 10
+    edge: 3
+  total_scenarios: 31
+  total_features: 6
+
+# ============================================
+# TAGS DE EXECUCAO
+# ============================================
+
+execution_tags:
+  by_speed:
+    "@ci-fast":
+      description: "Testes rapidos, sem dependencias externas"
+      features:
+        - "10_core/chat.feature"
+        - "10_core/tools.feature"
+        - "10_core/tokens.feature"
+        - "10_core/response.feature"
+        - "10_core/session.feature"
+    "@ci-int":
+      description: "Testes de integracao com provedores locais/mock"
+      features:
+        - "20_providers/providers.feature"
+    "@e2e":
+      description: "Testes end-to-end com provedores reais"
+      features:
+        - "20_providers/providers.feature"  # Esquema parametrizado
+
+  by_domain:
+    "@sdk": "Core SDK Python"
+    "@chat": "Funcionalidade de chat"
+    "@tools": "Tool Calling"
+    "@tokens": "Consumo de tokens"
+    "@response": "Normalizacao de respostas"
+    "@contexto": "Gestao de sessao/contexto"
+    "@providers": "Provedores LLM"
+
+  by_type:
+    "@erro": "Cenarios de erro"
+    "@edge": "Edge cases"
+    "@streaming": "Respostas em stream"
+    "@compactacao": "Compactacao de contexto"

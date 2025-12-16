@@ -1,0 +1,344 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://forgeprocess.dev/schemas/forgeprocess_state.schema.json",
+  "title": "ForgeProcess State Schema",
+  "description": "Schema para validar forgeprocess_state.yml com modelo de tres dimensoes (Custo, Esforco, Prazo)",
+  "type": "object",
+  "required": ["forgeprocess"],
+  "properties": {
+    "forgeprocess": {
+      "$ref": "#/definitions/forgeprocess"
+    }
+  },
+  "definitions": {
+    "range_minmax": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": ["number", "null"],
+          "description": "Valor minimo do range"
+        },
+        "max": {
+          "type": ["number", "null"],
+          "description": "Valor maximo do range"
+        }
+      }
+    },
+    "nullable_number": {
+      "type": ["number", "null"]
+    },
+    "forgeprocess": {
+      "type": "object",
+      "required": ["version", "product_id"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Versao do ForgeProcess (ex: 0.2.3)"
+        },
+        "product_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identificador do produto"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["mdd", "bdd", "execution", "delivery", "feedback"],
+          "description": "Fase atual do processo"
+        },
+        "subphase": {
+          "type": ["string", "null"],
+          "description": "Subfase atual (ex: roadmap_planning, tdd, sprint)"
+        },
+        "step": {
+          "type": ["string", "null"],
+          "description": "Passo atual dentro da subfase"
+        },
+        "cycle": {
+          "$ref": "#/definitions/cycle"
+        },
+        "metricas": {
+          "$ref": "#/definitions/metricas"
+        },
+        "tokens": {
+          "$ref": "#/definitions/tokens_legacy",
+          "description": "DEPRECATED: Use metricas.custo.tokens e metricas.esforco.tokens"
+        },
+        "mdd": {
+          "$ref": "#/definitions/phase_state"
+        },
+        "bdd": {
+          "$ref": "#/definitions/phase_state"
+        },
+        "execution": {
+          "$ref": "#/definitions/phase_state"
+        },
+        "delivery": {
+          "$ref": "#/definitions/phase_state"
+        },
+        "feedback": {
+          "$ref": "#/definitions/phase_state"
+        }
+      }
+    },
+    "cycle": {
+      "type": "object",
+      "properties": {
+        "current": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Numero do ciclo atual"
+        },
+        "start_date": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Data de inicio do ciclo"
+        },
+        "valuetracks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "ValueTracks incluidos neste ciclo"
+        }
+      }
+    },
+    "metricas": {
+      "type": "object",
+      "description": "Modelo de tres dimensoes: Custo, Esforco, Prazo",
+      "properties": {
+        "custo": {
+          "$ref": "#/definitions/metricas_custo"
+        },
+        "esforco": {
+          "$ref": "#/definitions/metricas_esforco"
+        },
+        "prazo": {
+          "$ref": "#/definitions/metricas_prazo"
+        }
+      }
+    },
+    "metricas_custo": {
+      "type": "object",
+      "description": "CUSTO: Quanto custa produzir (USD)",
+      "properties": {
+        "tokens": {
+          "type": "object",
+          "properties": {
+            "total_estimado": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Total de tokens estimados"
+            },
+            "total_consumido": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Total de tokens consumidos ate agora"
+            },
+            "preco_por_1k_output": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.015,
+              "description": "Preco por 1k tokens de output em USD"
+            },
+            "custo_estimado_usd": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Custo estimado de IA em USD"
+            },
+            "custo_consumido_usd": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Custo consumido de IA em USD"
+            }
+          }
+        },
+        "horas": {
+          "type": "object",
+          "properties": {
+            "total_estimadas": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Total de horas humanas estimadas"
+            },
+            "total_consumidas": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Total de horas humanas consumidas"
+            },
+            "valor_hora_usd": {
+              "type": "number",
+              "minimum": 0,
+              "default": 50.0,
+              "description": "Valor da hora humana em USD"
+            },
+            "custo_estimado_usd": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Custo estimado humano em USD"
+            },
+            "custo_consumido_usd": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Custo consumido humano em USD"
+            }
+          }
+        },
+        "total_estimado_usd": {
+          "$ref": "#/definitions/nullable_number",
+          "description": "Custo total estimado (IA + humano)"
+        },
+        "total_consumido_usd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Custo total consumido (IA + humano)"
+        },
+        "variancia_percent": {
+          "$ref": "#/definitions/nullable_number",
+          "description": "Variancia percentual entre estimado e consumido"
+        }
+      }
+    },
+    "metricas_esforco": {
+      "type": "object",
+      "description": "ESFORCO: Quanto trabalho e necessario (Tokens + Horas)",
+      "properties": {
+        "tokens_estimados": {
+          "$ref": "#/definitions/nullable_number",
+          "description": "Tokens de esforco estimados"
+        },
+        "tokens_consumidos": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Tokens de esforco consumidos"
+        },
+        "horas_estimadas": {
+          "$ref": "#/definitions/nullable_number",
+          "description": "Horas humanas estimadas"
+        },
+        "horas_consumidas": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Horas humanas consumidas"
+        },
+        "breakdown_horas": {
+          "type": "object",
+          "properties": {
+            "review": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Horas de code review"
+            },
+            "testes": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Horas de testes manuais/QA"
+            },
+            "arquitetura": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Horas de decisoes arquiteturais"
+            },
+            "merge_deploy": {
+              "$ref": "#/definitions/nullable_number",
+              "description": "Horas de merge/deploy"
+            }
+          },
+          "description": "Detalhamento de horas por atividade"
+        }
+      }
+    },
+    "metricas_prazo": {
+      "type": "object",
+      "description": "PRAZO: Quando estara pronto (Dias de ciclo)",
+      "properties": {
+        "ciclo_estimado_dias": {
+          "$ref": "#/definitions/range_minmax",
+          "description": "Tempo de ciclo estimado em dias (SEMPRE range min/max)"
+        },
+        "dias_decorridos": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Dias decorridos desde inicio do ciclo"
+        },
+        "paralelizacao": {
+          "type": "object",
+          "properties": {
+            "agentes_paralelos": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Quantidade de agentes trabalhando em paralelo"
+            },
+            "reducao_estimada_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 60,
+              "default": 0,
+              "description": "Reducao estimada no prazo com paralelizacao"
+            }
+          },
+          "description": "Configuracao de paralelizacao"
+        },
+        "data_inicio": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Data de inicio do ciclo"
+        },
+        "data_alvo_entrega": {
+          "$ref": "#/definitions/range_minmax",
+          "description": "Data alvo de entrega (range min/max)"
+        }
+      }
+    },
+    "tokens_legacy": {
+      "type": "object",
+      "description": "DEPRECATED: Mantido para compatibilidade retroativa",
+      "properties": {
+        "estimado": {
+          "$ref": "#/definitions/nullable_number"
+        },
+        "consumido": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "variancia": {
+          "$ref": "#/definitions/nullable_number"
+        }
+      }
+    },
+    "phase_state": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "completed", "blocked"],
+          "description": "Status da fase"
+        },
+        "started_at": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Data de inicio"
+        },
+        "completed_at": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Data de conclusao"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Artefatos produzidos nesta fase"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notas adicionais"
+        }
+      }
+    }
+  }
+}

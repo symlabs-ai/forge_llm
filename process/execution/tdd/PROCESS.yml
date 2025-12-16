@@ -1,0 +1,206 @@
+# TDD Workflow Process
+# Sub-subprocesso do Execution
+# Gerado automaticamente - v2.1
+
+id: tdd
+version: "0.1.0"
+title: "TDD - Test Driven Development (Testes)"
+description: "Preparação guiada por testes usando ciclo Red-Green-Refactor, transformando especificações BDD em uma suíte de testes confiável para uso pelo forge_coder na fase de Delivery."
+
+is_sub_phase: true
+parent_phase: "execution.tdd"
+
+narrative: |
+  O TDD Workflow segue o ciclo Red-Green-Refactor com foco em testes:
+  1. RED: Escrever teste que falha
+  2. GREEN: Ajustar testes até estarem estáveis e significativos
+  3. REFACTOR: Melhorar qualidade dos próprios testes
+
+  Key Principles:
+  - Test First: Escrever teste ANTES de implementar
+  - Minimal Implementation: Fazer teste passar com código mínimo
+  - Refactor Confidence: Melhorar código sabendo que testes cobrem
+  - Fast Feedback: Testes executam rápido (< 1 segundo)
+
+phases:
+  - id: tdd_cycle
+    title: "TDD Cycle"
+    narrative: "Ciclo Red-Green-Refactor por feature"
+    spec_file: "TDD_PROCESS.md"
+
+    steps:
+      - id: phase_1_selecao
+        title: "Phase 1 - Seleção da Tarefa e BDD Scenarios"
+        narrative: |
+          Selecionar próxima tarefa priorizada do BACKLOG.md.
+          Revisar feature file BDD completo.
+          Entender cenários Given/When/Then.
+          Mapear para testes Python (pytest-bdd).
+        inputs:
+          - path: "project/specs/roadmap/BACKLOG.md"
+            description: "Item de trabalho priorizado"
+          - path: "project/specs/bdd/**/*.feature"
+            description: "Feature files BDD"
+        outputs:
+          - path: "tests/bdd/test_*_steps.py"
+            description: "Arquivo de teste preparado"
+        actors:
+          - type: symbiota
+            name: tdd_coder
+            role: "Seleciona tarefa e prepara testes"
+
+      - id: phase_2_red
+        title: "Phase 2 - Test Setup (RED)"
+        narrative: |
+          Criar arquivo de teste.
+          Setup pytest fixtures.
+          Implementar step definitions (BDD → Python).
+          RODAR TESTE → Deve falhar (RED).
+        inputs:
+          - path: "project/specs/bdd/**/*.feature"
+            description: "Feature BDD"
+        outputs:
+          - path: "tests/bdd/test_*.py"
+            description: "Teste falhando (RED)"
+        actors:
+          - type: symbiota
+            name: tdd_coder
+            role: "Escreve teste que falha"
+
+      - id: phase_3_green
+        title: "Phase 3 - Minimal Implementation (GREEN - Testes)"
+        narrative: |
+          Garantir que os testes escritos estão estáveis, significativos e rastreáveis
+          ao backlog, servindo como contrato para implementação futura.
+          RODAR TESTES → Devem exercitar o comportamento desejado de forma confiável.
+        inputs:
+          - path: "tests/bdd/test_*.py"
+            description: "Testes BDD preparados (podem estar RED inicialmente)"
+        outputs:
+          - path: "tests/**/*.py"
+            description: "Testes consolidados para a tarefa selecionada"
+        actors:
+          - type: symbiota
+            name: tdd_coder
+            role: "Consolida testes (GREEN) para a tarefa"
+
+flow:
+  - id: start
+    type: start
+    next: phase_1
+
+  - id: phase_1
+    type: step
+    step_ref: tdd_cycle.phase_1_selecao
+    next: phase_2
+
+  - id: phase_2
+    type: step
+    step_ref: tdd_cycle.phase_2_red
+    next: decisao_teste_falha
+
+  - id: decisao_teste_falha
+    type: decision
+    decision:
+      question: "Teste falha pelo motivo esperado (ImportError, AssertionError, etc)?"
+      decider:
+        type: symbiota
+        actor: tdd_coder
+        expression: "test_fails AND failure_reason_is_expected"
+      branches:
+        - when: "yes"
+          goto: phase_3
+        - when: "no"
+          goto: phase_2
+
+  - id: phase_3
+    type: step
+    step_ref: tdd_cycle.phase_3_green
+    next: decisao_teste_passa
+
+  - id: decisao_teste_passa
+    type: decision
+    decision:
+      question: "Testes para a tarefa estão consolidados e executam de forma estável?"
+      decider:
+        type: condition
+        expression: "pytest_exit_code == 0"
+      branches:
+        - when: "pass"
+          goto: decisao_mais_tarefas
+        - when: "fail"
+          goto: phase_3
+
+  - id: decisao_mais_tarefas
+    type: decision
+    decision:
+      question: "Existem mais tarefas pendentes no BACKLOG.md?"
+      decider:
+        type: condition
+        expression: "backlog.has_pending_tasks()"
+      branches:
+        - when: "yes"
+          goto: phase_1
+        - when: "no"
+          goto: decisao_revisao_roadmap
+
+  - id: decisao_revisao_roadmap
+    type: decision
+    decision:
+      question: "Durante TDD surgiram necessidades de revisar o roadmap?"
+      decider:
+        type: hil
+        actor: tech_lead
+      branches:
+        - when: "no"
+          goto: return_complete
+        - when: "yes"
+          goto: return_needs_roadmap
+
+  - id: return_complete
+    type: return
+    return_status: "complete"
+
+  - id: return_needs_roadmap
+    type: return
+    return_status: "needs_roadmap_revision"
+
+artifacts:
+  - id: tests
+    path: "tests/**/*.py"
+    phase: tdd_cycle
+    description: "Testes automatizados"
+
+  - id: source_code
+    path: "src/**/*.py"
+    phase: tdd_cycle
+    description: "Código fonte (implementado/refatorado posteriormente pelo forge_coder em Delivery, guiado por estes testes)"
+
+  - id: coverage_report
+    path: "htmlcov/"
+    phase: tdd_cycle
+    description: "Relatório de cobertura de testes"
+
+symbiotes:
+  - name: tdd_coder
+    role: "Implementador TDD (testes)"
+    prompt_file: "../../symbiotes/tdd_coder/prompt.md"
+    capabilities:
+      - escrever_testes
+      - analisar_falhas
+    can_decide: true
+
+quality_metrics:
+  - name: test_coverage
+    target: ">= 80%"
+    description: "Cobertura de código por testes"
+    validation: "pytest --cov"
+
+  - name: all_tests_pass
+    target: "100%"
+    description: "Todos os testes passando"
+    validation: "pytest --tb=short"
+
+  - name: fast_feedback
+    target: "< 1 segundo por teste"
+    description: "Testes executam rapidamente"

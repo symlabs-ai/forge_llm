@@ -1,0 +1,94 @@
+# E2E CLI-first Validation Process
+# Sub-subprocesso do Delivery
+
+id: e2e_cli
+version: "0.1.0"
+title: "E2E CLI-First Validation"
+description: "Subprocesso que garante que o gate E2E CLI-first do ciclo atual foi implementado e executado antes de considerar a entrega deployável."
+
+is_sub_phase: true
+parent_phase: "delivery.e2e"
+
+narrative: |
+  O subprocesso de E2E CLI-First Validation é o gate final da fase de Delivery.
+  Ele garante que, para o ciclo atual (cycle-XX), exista uma suíte de testes
+  E2E baseada em CLI (`tests/e2e/cycle-XX/`) escrita conforme o guia
+  `process/guides/e2e_test_writing.md` e descrita em
+  `process/delivery/e2e/E2E_VALIDATION_PROCESS.md`.
+
+  Antes de marcar um ciclo como deployável, o time deve:
+  - verificar se a estrutura `tests/e2e/cycle-XX/` foi criada para o ciclo atual;
+  - implementar scripts por ValueTrack/SupportTrack usando os templates de `tests/e2e/template/`;
+  - executar `./tests/e2e/cycle-XX/run-all.sh` com credenciais reais;
+  - analisar o resultado e as evidências geradas em `tests/e2e/cycle-XX/evidence/`.
+
+phases:
+  - id: e2e_cli_validation
+    title: "E2E CLI-First Validation"
+    narrative: "Executar a suíte E2E CLI-first do ciclo atual e decidir se o gate E2E foi aprovado."
+    spec_file: "E2E_VALIDATION_PROCESS.md"
+
+    steps:
+      - id: run_e2e_cycle
+        title: "Executar suite E2E CLI-first do ciclo atual"
+        narrative: |
+          Executar `./tests/e2e/cycle-XX/run-all.sh` para o ciclo atual, usando
+          credenciais reais definidas em `.env.e2e`, e analisar o resultado.
+          Se a estrutura `tests/e2e/cycle-XX/` ainda não existir ou estiver
+          incompleta, orientar explicitamente o time a criá-la seguindo
+          `process/guides/e2e_test_writing.md` antes de considerar o ciclo
+          como validado.
+        inputs:
+          - path: "tests/e2e/**"
+            description: "Estrutura de testes E2E CLI-first (shared, template, cycle-XX)"
+          - path: "process/delivery/e2e/E2E_VALIDATION_PROCESS.md"
+            description: "Guia de processo para validação E2E CLI-first"
+          - path: "process/guides/e2e_test_writing.md"
+            description: "Guia para construção de testes E2E CLI-first"
+        outputs:
+          - path: "tests/e2e/cycle-XX/evidence/*.log"
+            description: "Evidências de execução da suíte E2E do ciclo"
+        actors:
+          - type: symbiota
+            name: sprint_coach
+            role: "Garante que o gate E2E do ciclo atual existe e foi executado"
+          - type: humano
+            name: stakeholder
+            role: "Executa `run-all.sh` e decide se o resultado é aceitável"
+
+flow:
+  - id: start
+    type: start
+    next: run_e2e_cycle
+
+  - id: run_e2e_cycle
+    type: step
+    step_ref: e2e_cli_validation.run_e2e_cycle
+    next: decisao_resultado_e2e
+
+  - id: decisao_resultado_e2e
+    type: decision
+    decision:
+      question: "Qual o resultado da validação E2E CLI-first do ciclo atual (`./tests/e2e/cycle-XX/run-all.sh`)?"
+      decider:
+        type: hil
+        actor: stakeholder
+      branches:
+        - when: "passed"
+          goto: return_passed
+        - when: "failed"
+          goto: return_failed
+        - when: "skipped"
+          goto: return_skipped
+
+  - id: return_passed
+    type: return
+    return_status: "passed"
+
+  - id: return_failed
+    type: return
+    return_status: "failed"
+
+  - id: return_skipped
+    type: return
+    return_status: "skipped"

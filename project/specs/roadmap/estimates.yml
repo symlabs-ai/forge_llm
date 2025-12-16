@@ -1,0 +1,570 @@
+# estimates.yml
+# Estimativas e Priorizacao - ForgeLLMClient MVP
+#
+# Data: 2025-12-16
+# Fase: Execution - Roadmap Planning (Etapa 04)
+#
+# Escala de Tamanho (Story Points):
+#   S (Small): 1 ponto - < 2 horas
+#   M (Medium): 2 pontos - 2-4 horas
+#   L (Large): 3 pontos - 4-8 horas
+#
+# Prioridade:
+#   P0: Bloqueante (must have)
+#   P1: Alta (should have)
+#   P2: Media (could have)
+
+metadata:
+  version: "1.1"
+  created: "2025-12-16"
+  updated: "2025-12-16"
+  total_tasks: 73
+  total_points: 125
+
+# ============================================
+# ESTIMATIVAS POR TRACK
+# ============================================
+
+tracks:
+
+  # ------------------------------
+  # SETUP: Infraestrutura Base
+  # ------------------------------
+  - id: SETUP
+    name: "Infraestrutura Base"
+    priority: P0
+    tasks:
+      - id: SETUP-01
+        name: "Configurar pyproject.toml"
+        size: S
+        points: 1
+        priority: P0
+      - id: SETUP-02
+        name: "Configurar estrutura de diretorios"
+        size: S
+        points: 1
+        priority: P0
+      - id: SETUP-03
+        name: "Configurar pytest e BDD"
+        size: S
+        points: 1
+        priority: P0
+      - id: SETUP-04
+        name: "Configurar ruff e mypy"
+        size: S
+        points: 1
+        priority: P1
+      - id: SETUP-05
+        name: "Criar __init__.py com exports"
+        size: S
+        points: 1
+        priority: P0
+      - id: SETUP-06
+        name: "Configurar LogService base"
+        size: S
+        points: 1
+        priority: P1
+      - id: SETUP-07
+        name: "Criar conftest.py com fixtures"
+        size: M
+        points: 2
+        priority: P0
+      - id: SETUP-08
+        name: "Criar ForgeLLMRegistry (herda PluginRegistryBase)"
+        size: M
+        points: 2
+        priority: P0
+    summary:
+      tasks: 8
+      points: 10
+
+  # ------------------------------
+  # ST-04: ProviderSupport
+  # ------------------------------
+  - id: ST-04
+    name: "ProviderSupport"
+    priority: P0
+    tasks:
+      - id: ST04-D01
+        name: "Criar ProviderConfig (EntityBase)"
+        size: S
+        points: 1
+        priority: P0
+      - id: ST04-D02
+        name: "Criar ProviderError exceptions"
+        size: S
+        points: 1
+        priority: P0
+      - id: ST04-A01
+        name: "Definir ILLMProviderPort (PortBase)"
+        size: M
+        points: 2
+        priority: P0
+      - id: ST04-A02
+        name: "Criar ProviderRegistry (PluginRegistryBase)"
+        size: M
+        points: 2
+        priority: P0
+      - id: ST04-I01
+        name: "Implementar OpenAIAdapter (AdapterBase)"
+        size: L
+        points: 3
+        priority: P0
+      - id: ST04-I02
+        name: "Implementar AnthropicAdapter (AdapterBase)"
+        size: L
+        points: 3
+        priority: P0
+      - id: ST04-I03
+        name: "Configurar autenticacao (API keys)"
+        size: S
+        points: 1
+        priority: P0
+      - id: ST04-T01
+        name: "Testes unitarios OpenAIAdapter"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST04-T02
+        name: "Testes unitarios AnthropicAdapter"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST04-T03
+        name: "Implementar BDD steps (test_providers_steps.py)"
+        size: M
+        points: 2
+        priority: P1
+    summary:
+      tasks: 10
+      points: 19
+
+  # ------------------------------
+  # VT-01: PortableChat
+  # ------------------------------
+  - id: VT-01
+    name: "PortableChat"
+    priority: P0
+    tasks:
+      - id: VT01-D01
+        name: "Criar ChatMessage (EntityBase)"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-D02
+        name: "Criar ChatConfig (EntityBase)"
+        size: S
+        points: 1
+        priority: P0
+      - id: VT01-D03
+        name: "Criar ChatChunk para streaming"
+        size: S
+        points: 1
+        priority: P0
+      - id: VT01-D04
+        name: "Criar ChatError exceptions"
+        size: S
+        points: 1
+        priority: P0
+      - id: VT01-A01
+        name: "Criar AgentBase (UseCaseBase)"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-A02
+        name: "Implementar ChatAgent.chat() sincrono"
+        size: L
+        points: 3
+        priority: P0
+      - id: VT01-A03
+        name: "Implementar ChatAgent.stream_chat()"
+        size: L
+        points: 3
+        priority: P0
+      - id: VT01-A04
+        name: "Injetar provider via registry"
+        size: S
+        points: 1
+        priority: P0
+      - id: VT01-I01
+        name: "Adaptar OpenAI para ChatMessage"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-I02
+        name: "Adaptar Anthropic para ChatMessage"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-I03
+        name: "Implementar streaming OpenAI"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-I04
+        name: "Implementar streaming Anthropic"
+        size: M
+        points: 2
+        priority: P0
+      - id: VT01-T01
+        name: "Testes unitarios ChatAgent"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT01-T02
+        name: "Testes de streaming (mock)"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT01-T03
+        name: "Implementar BDD steps (test_chat_steps.py)"
+        size: L
+        points: 3
+        priority: P1
+    summary:
+      tasks: 15
+      points: 29
+
+  # ------------------------------
+  # ST-02: ResponseNormalization
+  # ------------------------------
+  - id: ST-02
+    name: "ResponseNormalization"
+    priority: P1
+    tasks:
+      - id: ST02-D01
+        name: "Criar ChatResponse (EntityBase)"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST02-D02
+        name: "Criar ResponseMetadata value object"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST02-A01
+        name: "Normalizar resposta OpenAI"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST02-A02
+        name: "Normalizar resposta Anthropic"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST02-T01
+        name: "Testes de normalizacao"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST02-T02
+        name: "Implementar BDD steps (test_response_steps.py)"
+        size: S
+        points: 1
+        priority: P1
+    summary:
+      tasks: 6
+      points: 9
+
+  # ------------------------------
+  # ST-01: TokenUsage
+  # ------------------------------
+  - id: ST-01
+    name: "TokenUsage"
+    priority: P1
+    tasks:
+      - id: ST01-D01
+        name: "Criar TokenUsage value object"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-D02
+        name: "Criar TokenCount (input/output/total)"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-A01
+        name: "Extrair tokens de resposta OpenAI"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-A02
+        name: "Extrair tokens de resposta Anthropic"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-A03
+        name: "Incluir tokens no ChatResponse"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-T01
+        name: "Testes de extracao de tokens"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST01-T02
+        name: "Implementar BDD steps (test_tokens_steps.py)"
+        size: S
+        points: 1
+        priority: P1
+    summary:
+      tasks: 7
+      points: 7
+
+  # ------------------------------
+  # ST-03: ContextManager
+  # ------------------------------
+  - id: ST-03
+    name: "ContextManager"
+    priority: P1
+    tasks:
+      - id: ST03-D01
+        name: "Criar Session (EntityBase)"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-D02
+        name: "Criar SessionConfig"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST03-D03
+        name: "Criar ContextOverflowError"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST03-A01
+        name: "Definir ISessionStoragePort"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST03-A02
+        name: "Criar ChatSession com historico"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-A03
+        name: "Implementar validacao de limite"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-A04
+        name: "Criar SessionCompactor base"
+        size: S
+        points: 1
+        priority: P1
+      - id: ST03-A05
+        name: "Implementar TruncateCompactor"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-I01
+        name: "Implementar MemorySessionStorage"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-I02
+        name: "Integrar session com ChatAgent"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-T01
+        name: "Testes unitarios ChatSession"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-T02
+        name: "Testes de compactacao"
+        size: M
+        points: 2
+        priority: P1
+      - id: ST03-T03
+        name: "Implementar BDD steps (test_session_steps.py)"
+        size: L
+        points: 3
+        priority: P1
+    summary:
+      tasks: 13
+      points: 23
+
+  # ------------------------------
+  # VT-02: UnifiedTools
+  # ------------------------------
+  - id: VT-02
+    name: "UnifiedTools"
+    priority: P1
+    tasks:
+      - id: VT02-D01
+        name: "Criar ToolSchema (JSON Schema)"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-D02
+        name: "Criar ToolCall (EntityBase)"
+        size: S
+        points: 1
+        priority: P1
+      - id: VT02-D03
+        name: "Criar ToolResult"
+        size: S
+        points: 1
+        priority: P1
+      - id: VT02-D04
+        name: "Criar ToolError exceptions"
+        size: S
+        points: 1
+        priority: P1
+      - id: VT02-A01
+        name: "Registrar tools no ChatAgent"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-A02
+        name: "Detectar tool_call na resposta"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-A03
+        name: "Processar tool_result"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-A04
+        name: "Validar argumentos de tool"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-I01
+        name: "Traduzir tools para formato OpenAI"
+        size: L
+        points: 3
+        priority: P1
+      - id: VT02-I02
+        name: "Traduzir tools para formato Anthropic"
+        size: L
+        points: 3
+        priority: P1
+      - id: VT02-I03
+        name: "Parsear tool_use de Anthropic"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-T01
+        name: "Testes unitarios de tools"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-T02
+        name: "Testes de traducao OpenAI/Anthropic"
+        size: M
+        points: 2
+        priority: P1
+      - id: VT02-T03
+        name: "Implementar BDD steps (test_tools_steps.py)"
+        size: L
+        points: 3
+        priority: P1
+    summary:
+      tasks: 14
+      points: 28
+
+# ============================================
+# RESUMO GERAL
+# ============================================
+
+summary:
+  by_track:
+    - track: SETUP
+      tasks: 8
+      points: 10
+      priority: P0
+    - track: ST-04
+      tasks: 10
+      points: 19
+      priority: P0
+    - track: VT-01
+      tasks: 15
+      points: 29
+      priority: P0
+    - track: ST-02
+      tasks: 6
+      points: 9
+      priority: P1
+    - track: ST-01
+      tasks: 7
+      points: 7
+      priority: P1
+    - track: ST-03
+      tasks: 13
+      points: 23
+      priority: P1
+    - track: VT-02
+      tasks: 14
+      points: 28
+      priority: P1
+
+  by_priority:
+    P0:
+      tasks: 33
+      points: 58
+      percentage: "46%"
+    P1:
+      tasks: 40
+      points: 67
+      percentage: "54%"
+
+  by_size:
+    S:
+      count: 31
+      points: 31
+    M:
+      count: 33
+      points: 66
+    L:
+      count: 9
+      points: 27
+
+  totals:
+    tasks: 73
+    points: 125
+
+# ============================================
+# MILESTONES
+# ============================================
+
+milestones:
+  - id: M1
+    name: "Foundation"
+    tracks: ["SETUP", "ST-04"]
+    points: 29
+    scenarios_covered: 4
+    deliverable: "Adaptadores OpenAI/Anthropic funcionando"
+
+  - id: M2
+    name: "Core Chat"
+    tracks: ["VT-01"]
+    cumulative_points: 58
+    scenarios_covered: 13
+    deliverable: "Chat sync/streaming com ambos providers"
+
+  - id: M3
+    name: "Response & Tokens"
+    tracks: ["ST-02", "ST-01"]
+    cumulative_points: 74
+    scenarios_covered: 18
+    deliverable: "Respostas normalizadas com token usage"
+
+  - id: M4
+    name: "Sessions"
+    tracks: ["ST-03"]
+    cumulative_points: 97
+    scenarios_covered: 26
+    deliverable: "Gestao de sessao com compactacao"
+
+  - id: M5
+    name: "Tools (MVP Complete)"
+    tracks: ["VT-02"]
+    cumulative_points: 125
+    scenarios_covered: 31
+    deliverable: "Tool calling unificado - MVP completo"

@@ -1,0 +1,303 @@
+# Estimativas de Esforco Hibrido — [Nome do Projeto]
+#
+# Este arquivo contem estimativas para desenvolvimento hibrido (humanos + IA).
+#
+# O ForgeProcess adota TRES DIMENSOES independentes:
+#   - CUSTO: Quanto custa produzir (USD)
+#   - ESFORCO: Quanto trabalho e necessario (tokens + horas)
+#   - PRAZO: Quando estara pronto (dias de ciclo)
+#
+# PRINCIPIOS FUNDAMENTAIS:
+#   - Tokens medem custo computacional, NAO tempo
+#   - Apenas "tempo de ciclo" responde "quando fica pronto?"
+#   - Paralelizacao reduz prazo (30-50%), NAO custo
+#   - Sempre usar ranges (min/max), nunca valores fixos
+#
+# Referencia: docs/users/literature/forgeprocess-metricas-hibridas.md
+
+version: "2.0"
+project: "[Nome do Projeto]"
+date: "[AAAA-MM-DD]"
+
+# ============================================
+# Configuracao de Precos e Taxas
+# ============================================
+configuracao:
+  modelo_ia: "claude-sonnet-4-20250514"
+  custo_por_1k_tokens_input: 0.003    # USD
+  custo_por_1k_tokens_output: 0.015   # USD
+  valor_hora_humano: 50.00            # USD (ajustar conforme time)
+  # Paralelizacao
+  agentes_paralelos: 2                # qtd de agentes trabalhando em paralelo
+  reducao_prazo_paralelizacao: 30     # percentual de reducao no prazo
+
+# ============================================
+# Referencia de Complexidade (T-shirt → Tres Dimensoes)
+# ============================================
+# | T-shirt | Tokens      | Horas Humanas | Prazo (ciclo) | Custo Tipico* |
+# |---------|-------------|---------------|---------------|---------------|
+# | XS      | 5k-15k      | 2-4h          | 0.5-1 dia     | $100-250      |
+# | S       | 15k-40k     | 4-8h          | 1-2 dias      | $200-500      |
+# | M       | 40k-100k    | 8-16h         | 2-4 dias      | $400-1000     |
+# | L       | 100k-250k   | 16-32h        | 4-8 dias      | $800-2500     |
+# | XL      | 250k+       | 32h+          | 8+ dias       | $1600+        |
+#
+# *Custo tipico = tokens x $0.015/1k + horas x $50/h
+# XL deve ser quebrado em partes menores
+
+# ============================================
+# Estimativas por Feature
+# ============================================
+features:
+  - id: feature_exemplo_1.feature
+    name: "Descricao da Feature 1"
+    track: value_track_id             # referencia ao tracks.yml
+    effort_tshirt: S                  # XS | S | M | L | XL
+
+    # -------------------------------------------
+    # DIMENSAO 1: CUSTO
+    # -------------------------------------------
+    custo:
+      tokens_estimados: 25000
+      custo_ia_usd: 0.38              # calculado: tokens * preco_por_1k / 1000
+      horas_humanas: 6
+      custo_humano_usd: 300.00        # calculado: horas * valor_hora
+      custo_total_usd: 300.38         # soma
+
+    # -------------------------------------------
+    # DIMENSAO 2: ESFORCO
+    # -------------------------------------------
+    esforco:
+      tokens: 25000
+      tokens_breakdown:               # opcional: detalhamento
+        bdd_specs: 3000               # tokens para especificar cenarios
+        tdd_tests: 8000               # tokens para escrever testes
+        implementation: 12000         # tokens para implementar codigo
+        review_ajustes: 2000          # tokens para review/ajustes
+      horas: 6
+      horas_breakdown:                # detalhamento do esforco humano
+        review: 2                     # horas de code review
+        testes: 2                     # horas de testes manuais/QA
+        merge_deploy: 2               # horas de integracao/deploy
+
+    # -------------------------------------------
+    # DIMENSAO 3: PRAZO
+    # -------------------------------------------
+    # IMPORTANTE: Sempre usar ranges (min/max)
+    prazo:
+      tempo_ciclo_dias:
+        min: 1
+        max: 2
+      com_paralelizacao:              # aplicando reducao de 30%
+        min: 0.7
+        max: 1.4
+      data_alvo: null                 # preenchido durante planejamento
+
+    # Metadados
+    risk: LOW                         # LOW | MEDIUM | HIGH
+    dependencies: []                  # IDs de features que devem ser concluidas antes
+    sprint: 1
+    priority: P0                      # P0 (critico) | P1 | P2 | P3
+
+  - id: feature_exemplo_2.feature
+    name: "Descricao da Feature 2"
+    track: value_track_id
+    effort_tshirt: M
+
+    custo:
+      tokens_estimados: 70000
+      custo_ia_usd: 1.05
+      horas_humanas: 12
+      custo_humano_usd: 600.00
+      custo_total_usd: 601.05
+
+    esforco:
+      tokens: 70000
+      tokens_breakdown:
+        bdd_specs: 8000
+        tdd_tests: 22000
+        implementation: 35000
+        review_ajustes: 5000
+      horas: 12
+      horas_breakdown:
+        review: 4
+        testes: 4
+        arquitetura: 2                # decisoes arquiteturais
+        merge_deploy: 2
+
+    prazo:
+      tempo_ciclo_dias:
+        min: 3
+        max: 5
+      com_paralelizacao:
+        min: 2.1
+        max: 3.5
+
+    risk: MEDIUM
+    dependencies: [feature_exemplo_1.feature]
+    sprint: 1
+    priority: P0
+
+    # Se a feature foi quebrada em tarefas
+    tasks:
+      - id: TASK-001
+        name: "Tarefa 1"
+        custo:
+          tokens_estimados: 25000
+          horas_humanas: 4
+          custo_total_usd: 200.38
+        prazo:
+          tempo_ciclo_dias:
+            min: 1
+            max: 2
+      - id: TASK-002
+        name: "Tarefa 2"
+        custo:
+          tokens_estimados: 45000
+          horas_humanas: 8
+          custo_total_usd: 400.68
+        prazo:
+          tempo_ciclo_dias:
+            min: 2
+            max: 3
+
+  - id: feature_exemplo_3.feature
+    name: "Descricao da Feature 3"
+    track: value_track_id
+    effort_tshirt: L
+
+    custo:
+      tokens_estimados: 150000
+      custo_ia_usd: 2.25
+      horas_humanas: 24
+      custo_humano_usd: 1200.00
+      custo_total_usd: 1202.25
+
+    esforco:
+      tokens: 150000
+      horas: 24
+      horas_breakdown:
+        review: 8
+        testes: 8
+        arquitetura: 4
+        merge_deploy: 4
+
+    prazo:
+      tempo_ciclo_dias:
+        min: 5
+        max: 8
+      com_paralelizacao:
+        min: 3.5
+        max: 5.6
+
+    risk: HIGH
+    dependencies: [feature_exemplo_2.feature]
+    sprint: 2
+    priority: P1
+
+# ============================================
+# Totais Consolidados (Tres Dimensoes)
+# ============================================
+totals:
+  total_features: 3
+
+  # -------------------------------------------
+  # CUSTO: Quanto custa o produto?
+  # -------------------------------------------
+  custo:
+    tokens_totais: 245000
+    custo_ia_usd: 3.68                # soma de todos os custos IA
+    horas_totais: 42
+    custo_humano_usd: 2100.00         # soma de todos os custos humanos
+    custo_total_usd: 2103.68          # total geral
+
+  # -------------------------------------------
+  # ESFORCO: Quanto trabalho?
+  # -------------------------------------------
+  esforco:
+    tokens: 245000
+    horas: 42
+    horas_breakdown:
+      review: 14
+      testes: 14
+      arquitetura: 6
+      merge_deploy: 8
+
+  # -------------------------------------------
+  # PRAZO: Quando fica pronto?
+  # -------------------------------------------
+  prazo:
+    tempo_ciclo_total:
+      min: 9                          # dias (soma sequencial)
+      max: 15
+    com_paralelizacao:
+      min: 6.3                        # reducao de 30%
+      max: 10.5
+    sprints: 2
+
+  # Por sprint
+  by_sprint:
+    sprint_1:
+      features: [feature_exemplo_1.feature, feature_exemplo_2.feature]
+      custo:
+        tokens: 95000
+        custo_total_usd: 901.43
+      esforco:
+        tokens: 95000
+        horas: 18
+      prazo:
+        tempo_ciclo:
+          min: 4
+          max: 7
+
+    sprint_2:
+      features: [feature_exemplo_3.feature]
+      custo:
+        tokens: 150000
+        custo_total_usd: 1202.25
+      esforco:
+        tokens: 150000
+        horas: 24
+      prazo:
+        tempo_ciclo:
+          min: 5
+          max: 8
+
+  # Por ciclo (se CYCLE_PLAN definido)
+  by_cycle:
+    cycle_1:
+      valuetracks: [VT-01, VT-02]
+      custo:
+        tokens: 245000
+        custo_total_usd: 2103.68
+      esforco:
+        tokens: 245000
+        horas: 42
+      prazo:
+        tempo_ciclo:
+          min: 9
+          max: 15
+
+# ============================================
+# Impacto da Paralelizacao
+# ============================================
+# | Agentes Paralelos | Reducao de Prazo | Custo |
+# |-------------------|------------------|-------|
+# | 1                 | 0% (baseline)    | igual |
+# | 2                 | 30-40%           | igual |
+# | 3-4               | 40-50%           | igual |
+# | 5+                | 50-60% (max)     | igual |
+#
+# IMPORTANTE: Paralelizacao reduz PRAZO, nao CUSTO nem ESFORCO.
+# Fatores limitantes: review humano (gargalo), conflitos de merge, dependencias.
+
+# ============================================
+# Notas e Referencias
+# ============================================
+notas: |
+  - Estimativas baseadas em features similares anteriores
+  - Tokens incluem input + output
+  - Considerar margem de 20-30% para imprevistos
+  - Horas humanas incluem: review, testes, arquitetura, merge/deploy
+  - Prazo sempre em ranges (min/max), nunca valores fixos
+  - Custo = (tokens * preco) + (horas * valor_hora)
