@@ -5,6 +5,7 @@ Compacts message history by summarizing old messages using an LLM.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from forge_llm.domain.entities import ChatMessage
@@ -26,6 +27,19 @@ class SummarizeCompactor(SessionCompactor):
         agent = ChatAgent(provider="openai", api_key="sk-...")
         compactor = SummarizeCompactor(agent, summary_tokens=200)
         session = ChatSession(max_tokens=4000, compactor=compactor)
+
+    With custom prompt from file:
+        compactor = SummarizeCompactor(
+            agent,
+            prompt_file="prompts/my_summarization.md"
+        )
+
+    With prompt from prompts module:
+        from forge_llm.prompts import load_prompt
+        compactor = SummarizeCompactor(
+            agent,
+            summary_prompt=load_prompt("summarization")
+        )
     """
 
     CHARS_PER_TOKEN = 4
@@ -44,6 +58,7 @@ Summary:"""
         summary_tokens: int = 200,
         keep_recent: int = 4,
         summary_prompt: str | None = None,
+        prompt_file: str | Path | None = None,
     ) -> None:
         """
         Initialize SummarizeCompactor.
@@ -53,11 +68,52 @@ Summary:"""
             summary_tokens: Target token count for summary (default 200)
             keep_recent: Number of recent messages to preserve (default 4)
             summary_prompt: Custom prompt for summary generation
+            prompt_file: Path to markdown file with custom prompt
+                        (extracts first code block from file)
         """
         self._agent = agent
         self._summary_tokens = summary_tokens
         self._keep_recent = keep_recent
-        self._summary_prompt = summary_prompt or self.DEFAULT_SUMMARY_PROMPT
+        self._summary_prompt = self._load_prompt(summary_prompt, prompt_file)
+
+    def _load_prompt(
+        self,
+        summary_prompt: str | None,
+        prompt_file: str | Path | None,
+    ) -> str:
+        """Load prompt from string, file, or use default."""
+        # Priority: explicit prompt > file > default
+        if summary_prompt:
+            return summary_prompt
+
+        if prompt_file:
+            return self._load_prompt_from_file(prompt_file)
+
+        # Try to load from prompts module, fallback to default
+        try:
+            from forge_llm.prompts import load_prompt
+            return load_prompt("summarization")
+        except (ImportError, FileNotFoundError):
+            return self.DEFAULT_SUMMARY_PROMPT
+
+    def _load_prompt_from_file(self, file_path: str | Path) -> str:
+        """Load prompt from markdown file."""
+        import re
+        path = Path(file_path)
+
+        if not path.exists():
+            raise FileNotFoundError(f"Prompt file not found: {path}")
+
+        content = path.read_text(encoding="utf-8")
+
+        # Extract first code block
+        pattern = r"```(?:\w*)\n(.*?)```"
+        match = re.search(pattern, content, re.DOTALL)
+
+        if match:
+            return match.group(1).strip()
+
+        return content
 
     def compact(
         self,
