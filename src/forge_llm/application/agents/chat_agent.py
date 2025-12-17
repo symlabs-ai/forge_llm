@@ -439,6 +439,9 @@ class ChatAgent:
         if self._provider_name == "ollama":
             from forge_llm.infrastructure.providers import OllamaAdapter
             return OllamaAdapter(self._config)
+        if self._provider_name == "openrouter":
+            from forge_llm.infrastructure.providers import OpenRouterAdapter
+            return OpenRouterAdapter(self._config)
         from forge_llm.domain import UnsupportedProviderError
         raise UnsupportedProviderError(self._provider_name)
 
