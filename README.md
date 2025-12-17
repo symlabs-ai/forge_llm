@@ -8,6 +8,28 @@
 
 Unified LLM client with provider portability. Write once, run on any provider.
 
+## Para Agentes de Código de IA
+
+**Primeira vez usando ForgeLLM?** Acesse documentação completa programaticamente:
+
+```python
+from forge_llm.dev import get_agent_quickstart
+
+guide = get_agent_quickstart()  # Documentação completa de API
+print(guide)
+```
+
+**Referência rápida:**
+```python
+from forge_llm import ChatAgent
+
+agent = ChatAgent(provider="openai", model="gpt-4o-mini")
+response = agent.chat("Sua pergunta")
+print(response.content)
+```
+
+Documentação completa: [docs/product/agents/](./docs/product/agents/)
+
 ## Features
 
 - **Provider Portability**: Same code works with OpenAI, Anthropic, Ollama, and OpenRouter

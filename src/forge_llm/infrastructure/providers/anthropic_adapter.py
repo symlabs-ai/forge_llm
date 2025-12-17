@@ -87,17 +87,26 @@ class AnthropicAdapter:
         model = (config or {}).get("model") or self._config.model or "claude-3-sonnet-20240229"
         max_tokens = (config or {}).get("max_tokens", 4096)
 
+        # Extract system messages and non-system messages
+        system_prompt, filtered_messages = self._extract_system_prompt(messages)
+
         self._logger.debug(
             "Sending request to Anthropic",
             model=model,
-            message_count=len(messages),
+            message_count=len(filtered_messages),
+            has_system=system_prompt is not None,
         )
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=messages,  # type: ignore[arg-type]
-        )
+        # Build request params
+        request_params: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": filtered_messages,
+        }
+        if system_prompt:
+            request_params["system"] = system_prompt
+
+        response = client.messages.create(**request_params)  # type: ignore[arg-type]
 
         content = ""
         if response.content and hasattr(response.content[0], "text"):
@@ -139,19 +148,25 @@ class AnthropicAdapter:
         max_tokens = (config or {}).get("max_tokens", 4096)
         tools = (config or {}).get("tools")
 
+        # Extract system messages and non-system messages
+        system_prompt, filtered_messages = self._extract_system_prompt(messages)
+
         self._logger.debug(
             "Starting stream from Anthropic",
             model=model,
-            message_count=len(messages),
+            message_count=len(filtered_messages),
             has_tools=tools is not None,
+            has_system=system_prompt is not None,
         )
 
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
-            "messages": messages,
+            "messages": filtered_messages,
         }
+        if system_prompt:
+            request_params["system"] = system_prompt
         if tools:
             # Convert OpenAI format tools to Anthropic format
             request_params["tools"] = self._convert_tools_to_anthropic(tools)
@@ -214,6 +229,35 @@ class AnthropicAdapter:
                             "provider": "anthropic",
                             "finish_reason": "stop",
                         }
+
+    def _extract_system_prompt(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
+        """
+        Extract system messages from message list.
+
+        Anthropic API requires system prompt as separate parameter,
+        not as a message with role "system".
+
+        Args:
+            messages: List of messages with roles
+
+        Returns:
+            Tuple of (system_prompt, filtered_messages)
+        """
+        system_parts = []
+        filtered = []
+
+        for msg in messages:
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                if content:
+                    system_parts.append(content)
+            else:
+                filtered.append(msg)
+
+        system_prompt = "\n\n".join(system_parts) if system_parts else None
+        return system_prompt, filtered
 
     def _convert_tools_to_anthropic(
         self, tools: list[dict[str, Any]]
