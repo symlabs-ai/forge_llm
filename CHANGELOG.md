@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2024-12-17
+
+### Added
+- Comprehensive documentation in `/docs/product/`
+  - User documentation: quickstart, api-reference, providers, tools, sessions, streaming, error-handling, recipes
+  - Agent documentation: discovery, api-summary, patterns, troubleshooting
+- AI agent discovery module (`forge_llm.dev`)
+  - `get_agent_quickstart()` - Complete API guide for AI coding agents
+  - `get_documentation_path()` - Path to documentation directory
+  - `get_api_summary()` - Condensed API reference
+- Live integration tests (`tests/live/`)
+  - OpenAI live tests (10 tests)
+  - Anthropic live tests (10 tests)
+  - Cross-provider tests (6 tests)
+  - README with usage instructions
+- New unit test scenarios (6 files, ~200 tests)
+  - Conversation scenarios
+  - Tool chaining scenarios
+  - Streaming edge cases
+  - Error fallback scenarios
+  - Provider switching scenarios
+  - Session persistence scenarios
+- "Para Agentes de Código de IA" section in README.md for discovery
+
+### Fixed
+- Anthropic adapter system prompt handling
+  - System messages now correctly extracted and passed as `system` parameter
+  - Fixes 400 Bad Request errors with system role
+
+### Changed
+- Test suite expanded from ~380 to 508+ unit tests
+- README updated with AI agent discovery section
+
+## [0.2.0] - 2024-12-16
+
 ### Added
 - Structured JSON logging with structlog
   - Correlation ID support for request tracing
@@ -46,7 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tool system with ToolRegistry, ToolDefinition, ToolCall, and ToolResult
 - Provider configuration with ProviderConfig entity
 - Domain errors: ProviderNotConfiguredError, ContextWindowExceededError, ToolExecutionError
-- Comprehensive test suite with 221 tests
 
 ### Features
 - Unified interface for multiple LLM providers

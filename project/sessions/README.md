@@ -1,35 +1,40 @@
-# Session Logs
+# Project Sessions
 
-Este diretorio contem registros de sessoes de trabalho.
+Histórico de sessões de desenvolvimento com agentes de IA.
 
-## Como Usar
+## Propósito
 
-1. Copie o template de `process/templates/session_log.md`
-2. Renomeie para `YYYY-MM-DD-HH-descricao.md`
-3. Preencha durante ou apos a sessao
-4. Commit junto com o codigo da sessao
+Este diretório documenta o trabalho realizado por agentes de IA no projeto ForgeLLM.
+Serve como memória de longo prazo para que futuros agentes possam:
 
-## Formato do Nome
+1. Entender decisões arquiteturais tomadas
+2. Conhecer problemas encontrados e suas soluções
+3. Continuar trabalho de onde parou
+4. Evitar refazer trabalho já feito
 
-```
-YYYY-MM-DD-HH-descricao.md
-```
+## Sessões
 
-Exemplos:
-- `2025-12-16-14-implement-chat-session.md`
-- `2025-12-16-16-fix-token-overflow.md`
-- `2025-12-17-09-add-tool-validation.md`
+| Data | Versão | Descrição |
+|------|--------|-----------|
+| [2024-12-17](./2024-12-17-documentation-and-discovery.md) | 0.2.0 → 0.3.0 | Documentação completa e descoberta para agentes de IA |
 
-## Quando Criar
+## Formato das Sessões
 
-- No inicio de cada sessao de trabalho significativa (>30 min)
-- Sempre que tomar decisoes arquiteturais
-- Quando encontrar bloqueios importantes
-- Ao concluir um milestone ou track
+Cada sessão documenta:
 
-## Beneficios
+- **Contexto:** Estado inicial do projeto
+- **Objetivos:** O que foi solicitado
+- **Trabalho Realizado:** Detalhes técnicos
+- **Commits/Tags:** Referências git
+- **Arquivos:** Criados e modificados
+- **Problemas e Soluções:** Debugging e fixes
+- **Próximos Passos:** Sugestões futuras
 
-- Rastreabilidade de decisoes
-- Facilita retrospectivas
-- Documenta contexto para futuros desenvolvedores
-- Evidencia de processo TDD
+## Para Agentes de IA
+
+Antes de iniciar trabalho no projeto:
+
+1. Leia a sessão mais recente
+2. Verifique o CHANGELOG.md
+3. Use `from forge_llm.dev import get_agent_quickstart` para API reference
+4. Consulte `docs/product/agents/` para padrões e troubleshooting
