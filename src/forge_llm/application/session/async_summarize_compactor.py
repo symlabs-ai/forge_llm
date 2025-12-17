@@ -1,46 +1,46 @@
 """
-SummarizeCompactor - LLM-based context compaction.
+AsyncSummarizeCompactor - Async LLM-based context compaction.
 
-Compacts message history by summarizing old messages using an LLM.
+Compacts message history by summarizing old messages using an async LLM agent.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from forge_llm.domain.entities import ChatMessage
 
-from .compactor import SessionCompactor
-
 if TYPE_CHECKING:
-    from forge_llm.application.agents import ChatAgent
+    from forge_llm.application.agents import AsyncChatAgent
 
 logger = logging.getLogger(__name__)
 
 
-class SummarizeCompactor(SessionCompactor):
+class AsyncSummarizeCompactor:
     """
-    Compacts by summarizing old messages with an LLM.
+    Async compactor that summarizes old messages with an LLM.
 
-    Uses a ChatAgent to generate a summary of older messages,
+    Uses an AsyncChatAgent to generate a summary of older messages,
     preserving the system prompt and recent conversation.
 
     Usage:
-        agent = ChatAgent(provider="openai", api_key="sk-...")
-        compactor = SummarizeCompactor(agent, summary_tokens=200)
-        session = ChatSession(max_tokens=4000, compactor=compactor)
+        agent = AsyncChatAgent(provider="openai", api_key="sk-...")
+        compactor = AsyncSummarizeCompactor(agent, summary_tokens=200)
+
+        # Use with async code
+        messages = await compactor.compact(messages, target_tokens=4000)
 
     With custom prompt from file:
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             agent,
             prompt_file="prompts/my_summarization.md"
         )
 
     With prompt from prompts module:
         from forge_llm.prompts import load_prompt
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             agent,
             summary_prompt=load_prompt("summarization")
         )
@@ -58,7 +58,7 @@ Summary:"""
 
     def __init__(
         self,
-        agent: ChatAgent,
+        agent: AsyncChatAgent,
         summary_tokens: int = 200,
         keep_recent: int = 4,
         summary_prompt: str | None = None,
@@ -67,10 +67,10 @@ Summary:"""
         retry_delay: float = 1.0,
     ) -> None:
         """
-        Initialize SummarizeCompactor.
+        Initialize AsyncSummarizeCompactor.
 
         Args:
-            agent: ChatAgent to use for summarization
+            agent: AsyncChatAgent to use for summarization
             summary_tokens: Target token count for summary (default 200)
             keep_recent: Number of recent messages to preserve (default 4)
             summary_prompt: Custom prompt for summary generation
@@ -102,6 +102,7 @@ Summary:"""
         # Try to load from prompts module, fallback to default
         try:
             from forge_llm.prompts import load_prompt
+
             return load_prompt("summarization")
         except (ImportError, FileNotFoundError):
             return self.DEFAULT_SUMMARY_PROMPT
@@ -109,6 +110,7 @@ Summary:"""
     def _load_prompt_from_file(self, file_path: str | Path) -> str:
         """Load prompt from markdown file."""
         import re
+
         path = Path(file_path)
 
         if not path.exists():
@@ -125,13 +127,13 @@ Summary:"""
 
         return content
 
-    def compact(
+    async def compact(
         self,
         messages: list[ChatMessage],
         target_tokens: int,
     ) -> list[ChatMessage]:
         """
-        Compact messages by summarizing old ones.
+        Compact messages by summarizing old ones asynchronously.
 
         Preserves system messages, summarizes older messages,
         and keeps recent messages intact.
@@ -164,7 +166,7 @@ Summary:"""
             return messages
 
         # Generate summary with error handling
-        summary_text = self._generate_summary_with_retry(to_summarize)
+        summary_text = await self._generate_summary_with_retry(to_summarize)
 
         # If summary generation failed, fallback to truncation
         if summary_text is None:
@@ -194,7 +196,7 @@ Summary:"""
 
         return result
 
-    def _generate_summary_with_retry(
+    async def _generate_summary_with_retry(
         self, messages: list[ChatMessage]
     ) -> str | None:
         """Generate summary with retry logic and error handling."""
@@ -202,7 +204,7 @@ Summary:"""
 
         for attempt in range(self._max_retries):
             try:
-                summary = self._generate_summary(messages)
+                summary = await self._generate_summary(messages)
                 if summary:  # Validate non-empty response
                     return summary
                 logger.warning(
@@ -222,7 +224,7 @@ Summary:"""
             # Exponential backoff before retry
             if attempt < self._max_retries - 1:
                 delay = self._retry_delay * (2**attempt)
-                time.sleep(delay)
+                await asyncio.sleep(delay)
 
         # All retries failed
         if last_error:
@@ -233,15 +235,15 @@ Summary:"""
             )
         return None
 
-    def _generate_summary(self, messages: list[ChatMessage]) -> str:
-        """Generate summary of messages using LLM."""
+    async def _generate_summary(self, messages: list[ChatMessage]) -> str:
+        """Generate summary of messages using async LLM."""
         # Format messages for summary
         formatted = self._format_messages_for_summary(messages)
 
         # Generate summary
         prompt = self._summary_prompt.format(messages=formatted)
 
-        response = self._agent.chat(prompt, auto_execute_tools=False)
+        response = await self._agent.chat(prompt, auto_execute_tools=False)
         return response.content or ""
 
     def _fallback_truncate(

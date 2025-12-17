@@ -1,61 +1,69 @@
 """
-Unit tests for SummarizeCompactor.
+Unit tests for AsyncSummarizeCompactor.
 
-Tests LLM-based session compaction with mock ChatAgent.
+Tests async LLM-based session compaction with mock AsyncChatAgent.
 """
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from forge_llm.application.session import SummarizeCompactor
+from forge_llm.application.session import AsyncSummarizeCompactor
 from forge_llm.domain.entities import ChatMessage
 from forge_llm.domain.value_objects import ChatResponse
 
 
-class TestSummarizeCompactorInit:
-    """Tests for SummarizeCompactor initialization."""
+class TestAsyncSummarizeCompactorInit:
+    """Tests for AsyncSummarizeCompactor initialization."""
 
     def test_init_with_defaults(self):
         """Should initialize with default values."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         assert compactor._agent == mock_agent
         assert compactor._summary_tokens == 200
         assert compactor._keep_recent == 4
+        assert compactor._max_retries == 3
+        assert compactor._retry_delay == 1.0
 
     def test_init_with_custom_values(self):
         """Should accept custom configuration."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             agent=mock_agent,
             summary_tokens=300,
             keep_recent=6,
             summary_prompt="Custom: {messages}",
+            max_retries=5,
+            retry_delay=2.0,
         )
 
         assert compactor._summary_tokens == 300
         assert compactor._keep_recent == 6
         assert compactor._summary_prompt == "Custom: {messages}"
+        assert compactor._max_retries == 5
+        assert compactor._retry_delay == 2.0
 
 
-class TestSummarizeCompactorCompact:
-    """Tests for SummarizeCompactor.compact()."""
+class TestAsyncSummarizeCompactorCompact:
+    """Tests for AsyncSummarizeCompactor.compact()."""
 
-    def test_compact_empty_list_returns_empty(self):
+    @pytest.mark.asyncio
+    async def test_compact_empty_list_returns_empty(self):
         """compact() should return empty list for empty input."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
-        result = compactor.compact([], target_tokens=1000)
+        result = await compactor.compact([], target_tokens=1000)
 
         assert result == []
 
-    def test_compact_few_messages_returns_unchanged(self):
+    @pytest.mark.asyncio
+    async def test_compact_few_messages_returns_unchanged(self):
         """compact() should not modify when messages <= keep_recent."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent, keep_recent=4)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=4)
 
         messages = [
             ChatMessage.user("Hello"),
@@ -63,19 +71,19 @@ class TestSummarizeCompactorCompact:
             ChatMessage.user("How are you?"),
         ]
 
-        result = compactor.compact(messages, target_tokens=1000)
+        result = await compactor.compact(messages, target_tokens=1000)
 
         assert result == messages
-        mock_agent.chat.assert_not_called()
 
-    def test_compact_preserves_system_messages(self):
+    @pytest.mark.asyncio
+    async def test_compact_preserves_system_messages(self):
         """compact() should preserve system messages."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "Summary: conversation about weather"
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.system("You are a helpful assistant."),
@@ -87,20 +95,21 @@ class TestSummarizeCompactorCompact:
             ChatMessage.assistant("Goodbye!"),
         ]
 
-        result = compactor.compact(messages, target_tokens=100)
+        result = await compactor.compact(messages, target_tokens=100)
 
         # System message should be first
         assert result[0].role == "system"
         assert result[0].content == "You are a helpful assistant."
 
-    def test_compact_generates_summary_for_old_messages(self):
+    @pytest.mark.asyncio
+    async def test_compact_generates_summary_for_old_messages(self):
         """compact() should summarize messages older than keep_recent."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "Summary: discussed weather and thanks"
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.user("What's the weather like today? I need to plan my outdoor activities."),
@@ -111,22 +120,21 @@ class TestSummarizeCompactorCompact:
             ChatMessage.assistant("Goodbye!"),
         ]
 
-        # Use low target to force compaction (messages total ~100 tokens)
-        compactor.compact(messages, target_tokens=30)
+        # Use low target to force compaction
+        await compactor.compact(messages, target_tokens=30)
 
         # Should call chat to generate summary
         mock_agent.chat.assert_called_once()
-        call_args = mock_agent.chat.call_args
-        assert "weather" in call_args[0][0].lower() or "What's the weather" in call_args[0][0]
 
-    def test_compact_keeps_recent_messages(self):
+    @pytest.mark.asyncio
+    async def test_compact_keeps_recent_messages(self):
         """compact() should keep the most recent messages."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "Summary of old conversation"
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.user("Old message 1"),
@@ -135,21 +143,22 @@ class TestSummarizeCompactorCompact:
             ChatMessage.assistant("Recent 2"),
         ]
 
-        result = compactor.compact(messages, target_tokens=50)
+        result = await compactor.compact(messages, target_tokens=50)
 
         # Recent messages should be preserved
         recent_contents = [m.content for m in result if m.role != "system"]
         assert "Recent 1" in recent_contents
         assert "Recent 2" in recent_contents
 
-    def test_compact_creates_summary_message(self):
+    @pytest.mark.asyncio
+    async def test_compact_creates_summary_message(self):
         """compact() should create a summary message with the LLM response."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "The user asked about weather and received helpful info."
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.user("What's the weather like today in the city? I need detailed info."),
@@ -159,17 +168,19 @@ class TestSummarizeCompactorCompact:
         ]
 
         # Low target to force compaction
-        result = compactor.compact(messages, target_tokens=20)
+        result = await compactor.compact(messages, target_tokens=20)
 
         # Find summary message
         summary_msgs = [m for m in result if "[Previous conversation summary]" in (m.content or "")]
         assert len(summary_msgs) == 1
         assert "weather" in summary_msgs[0].content.lower()
 
-    def test_compact_does_not_call_llm_when_under_limit(self):
+    @pytest.mark.asyncio
+    async def test_compact_does_not_call_llm_when_under_limit(self):
         """compact() should not call LLM if already under target."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        mock_agent.chat = AsyncMock()
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.user("Hi"),
@@ -179,20 +190,21 @@ class TestSummarizeCompactorCompact:
         ]
 
         # Very high limit - no compaction needed
-        result = compactor.compact(messages, target_tokens=10000)
+        result = await compactor.compact(messages, target_tokens=10000)
 
         # Should return original messages
         assert result == messages
         mock_agent.chat.assert_not_called()
 
-    def test_compact_calls_chat_with_auto_execute_false(self):
+    @pytest.mark.asyncio
+    async def test_compact_calls_chat_with_auto_execute_false(self):
         """compact() should call chat with auto_execute_tools=False."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "Summary"
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2)
 
         messages = [
             ChatMessage.user("This is a longer message about the first topic of discussion."),
@@ -204,20 +216,20 @@ class TestSummarizeCompactorCompact:
         ]
 
         # Low target to force compaction
-        compactor.compact(messages, target_tokens=30)
+        await compactor.compact(messages, target_tokens=30)
 
         mock_agent.chat.assert_called_once()
         _, kwargs = mock_agent.chat.call_args
         assert kwargs.get("auto_execute_tools") is False
 
 
-class TestSummarizeCompactorFormatting:
-    """Tests for message formatting in SummarizeCompactor."""
+class TestAsyncSummarizeCompactorFormatting:
+    """Tests for message formatting in AsyncSummarizeCompactor."""
 
     def test_format_messages_for_summary(self):
         """_format_messages_for_summary should create readable text."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         messages = [
             ChatMessage.user("Hello"),
@@ -230,13 +242,13 @@ class TestSummarizeCompactorFormatting:
         assert "Assistant: Hi there!" in result
 
 
-class TestSummarizeCompactorTokenEstimation:
-    """Tests for token estimation in SummarizeCompactor."""
+class TestAsyncSummarizeCompactorTokenEstimation:
+    """Tests for token estimation in AsyncSummarizeCompactor."""
 
     def test_estimate_tokens(self):
         """_estimate_tokens should estimate total tokens."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         messages = [
             ChatMessage.user("Hello world"),  # 11 chars / 4 = 2 + 4 = 6
@@ -250,7 +262,7 @@ class TestSummarizeCompactorTokenEstimation:
     def test_estimate_message_tokens(self):
         """_estimate_message_tokens should estimate message tokens."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         # 20 chars / 4 = 5, plus base 4 = 9
         msg = ChatMessage.user("12345678901234567890")
@@ -260,18 +272,19 @@ class TestSummarizeCompactorTokenEstimation:
         assert result == 9
 
 
-class TestSummarizeCompactorCustomPrompt:
+class TestAsyncSummarizeCompactorCustomPrompt:
     """Tests for custom summary prompts."""
 
-    def test_uses_custom_prompt(self):
+    @pytest.mark.asyncio
+    async def test_uses_custom_prompt(self):
         """compact() should use custom summary prompt if provided."""
         mock_agent = MagicMock()
         mock_response = MagicMock(spec=ChatResponse)
         mock_response.content = "Custom summary"
-        mock_agent.chat.return_value = mock_response
+        mock_agent.chat = AsyncMock(return_value=mock_response)
 
         custom_prompt = "CUSTOM FORMAT: {messages}"
-        compactor = SummarizeCompactor(mock_agent, keep_recent=2, summary_prompt=custom_prompt)
+        compactor = AsyncSummarizeCompactor(mock_agent, keep_recent=2, summary_prompt=custom_prompt)
 
         messages = [
             ChatMessage.user("This is a longer message about the first topic of discussion."),
@@ -283,13 +296,13 @@ class TestSummarizeCompactorCustomPrompt:
         ]
 
         # Low target to force compaction
-        compactor.compact(messages, target_tokens=30)
+        await compactor.compact(messages, target_tokens=30)
 
         call_args = mock_agent.chat.call_args[0][0]
         assert "CUSTOM FORMAT:" in call_args
 
 
-class TestSummarizeCompactorPromptFile:
+class TestAsyncSummarizeCompactorPromptFile:
     """Tests for prompt_file parameter and file loading."""
 
     def test_load_prompt_from_file(self, tmp_path: Path):
@@ -307,7 +320,7 @@ My custom prompt: {messages}
         )
 
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent, prompt_file=prompt_file)
+        compactor = AsyncSummarizeCompactor(mock_agent, prompt_file=prompt_file)
 
         assert compactor._summary_prompt == "My custom prompt: {messages}"
 
@@ -317,7 +330,7 @@ My custom prompt: {messages}
         prompt_file.write_text("Plain text prompt: {messages}")
 
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent, prompt_file=prompt_file)
+        compactor = AsyncSummarizeCompactor(mock_agent, prompt_file=prompt_file)
 
         assert compactor._summary_prompt == "Plain text prompt: {messages}"
 
@@ -327,73 +340,27 @@ My custom prompt: {messages}
         missing_file = tmp_path / "nonexistent.md"
 
         with pytest.raises(FileNotFoundError) as exc_info:
-            SummarizeCompactor(mock_agent, prompt_file=missing_file)
+            AsyncSummarizeCompactor(mock_agent, prompt_file=missing_file)
 
         assert "Prompt file not found" in str(exc_info.value)
 
-    def test_prompt_priority_explicit_over_file(self, tmp_path: Path):
-        """Explicit summary_prompt should take priority over prompt_file."""
-        prompt_file = tmp_path / "file_prompt.md"
-        prompt_file.write_text("```\nFile prompt: {messages}\n```")
 
-        mock_agent = MagicMock()
-        compactor = SummarizeCompactor(
-            mock_agent,
-            summary_prompt="Explicit prompt: {messages}",
-            prompt_file=prompt_file,
-        )
-
-        assert compactor._summary_prompt == "Explicit prompt: {messages}"
-
-    def test_prompt_from_prompts_module(self):
-        """Should try to load from prompts module when no explicit prompt."""
-        mock_agent = MagicMock()
-
-        # Uses default behavior which tries forge_llm.prompts.load_prompt
-        compactor = SummarizeCompactor(mock_agent)
-
-        # Should have loaded something (from module or DEFAULT)
-        assert "{messages}" in compactor._summary_prompt
-
-    def test_fallback_to_default_when_module_fails(self):
-        """Should fallback to DEFAULT_SUMMARY_PROMPT when prompts module fails."""
-        mock_agent = MagicMock()
-
-        # Patch the import inside _load_prompt to raise FileNotFoundError
-        mock_load_prompt = MagicMock(side_effect=FileNotFoundError("not found"))
-        mock_prompts_module = MagicMock()
-        mock_prompts_module.load_prompt = mock_load_prompt
-
-        with patch.dict("sys.modules", {"forge_llm.prompts": mock_prompts_module}):
-            compactor = SummarizeCompactor(mock_agent)
-
-        # Should fallback to default - check it contains the key parts
-        assert "Summarize the following conversation" in compactor._summary_prompt
-
-
-class TestSummarizeCompactorRetryLogic:
+class TestAsyncSummarizeCompactorRetryLogic:
     """Tests for retry logic and error handling."""
 
-    def test_init_with_retry_params(self):
-        """Should initialize with retry parameters."""
-        mock_agent = MagicMock()
-        compactor = SummarizeCompactor(
-            mock_agent, max_retries=5, retry_delay=2.0
-        )
-
-        assert compactor._max_retries == 5
-        assert compactor._retry_delay == 2.0
-
-    def test_retry_on_llm_failure(self):
+    @pytest.mark.asyncio
+    async def test_retry_on_llm_failure(self):
         """Should retry on LLM call failure."""
         mock_agent = MagicMock()
-        mock_agent.chat.side_effect = [
-            Exception("API error"),
-            Exception("API error"),
-            MagicMock(content="Summary after retry"),
-        ]
+        mock_agent.chat = AsyncMock(
+            side_effect=[
+                Exception("API error"),
+                Exception("API error"),
+                MagicMock(content="Summary after retry"),
+            ]
+        )
 
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             mock_agent, keep_recent=2, max_retries=3, retry_delay=0.01
         )
 
@@ -404,7 +371,7 @@ class TestSummarizeCompactorRetryLogic:
             ChatMessage.assistant("Response 2"),
         ]
 
-        result = compactor.compact(messages, target_tokens=20)
+        result = await compactor.compact(messages, target_tokens=20)
 
         # Should have retried and succeeded
         assert mock_agent.chat.call_count == 3
@@ -414,12 +381,13 @@ class TestSummarizeCompactorRetryLogic:
         ]
         assert len(summary_msgs) == 1
 
-    def test_fallback_truncate_after_all_retries_fail(self):
+    @pytest.mark.asyncio
+    async def test_fallback_truncate_after_all_retries_fail(self):
         """Should fallback to truncation when all retries fail."""
         mock_agent = MagicMock()
-        mock_agent.chat.side_effect = Exception("API always fails")
+        mock_agent.chat = AsyncMock(side_effect=Exception("API always fails"))
 
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             mock_agent, keep_recent=2, max_retries=2, retry_delay=0.01
         )
 
@@ -430,7 +398,7 @@ class TestSummarizeCompactorRetryLogic:
             ChatMessage.assistant("Response 2"),
         ]
 
-        result = compactor.compact(messages, target_tokens=20)
+        result = await compactor.compact(messages, target_tokens=20)
 
         # Should have attempted all retries
         assert mock_agent.chat.call_count == 2
@@ -441,16 +409,19 @@ class TestSummarizeCompactorRetryLogic:
         ]
         assert len(summary_msgs) == 0
 
-    def test_retry_on_empty_response(self):
+    @pytest.mark.asyncio
+    async def test_retry_on_empty_response(self):
         """Should retry when LLM returns empty response."""
         mock_agent = MagicMock()
-        mock_agent.chat.side_effect = [
-            MagicMock(content=""),
-            MagicMock(content=None),
-            MagicMock(content="Valid summary"),
-        ]
+        mock_agent.chat = AsyncMock(
+            side_effect=[
+                MagicMock(content=""),
+                MagicMock(content=None),
+                MagicMock(content="Valid summary"),
+            ]
+        )
 
-        compactor = SummarizeCompactor(
+        compactor = AsyncSummarizeCompactor(
             mock_agent, keep_recent=2, max_retries=3, retry_delay=0.01
         )
 
@@ -461,7 +432,7 @@ class TestSummarizeCompactorRetryLogic:
             ChatMessage.assistant("Response 2"),
         ]
 
-        result = compactor.compact(messages, target_tokens=20)
+        result = await compactor.compact(messages, target_tokens=20)
 
         # Should have retried until getting valid response
         assert mock_agent.chat.call_count == 3
@@ -474,13 +445,13 @@ class TestSummarizeCompactorRetryLogic:
         assert "Valid summary" in summary_msgs[0].content
 
 
-class TestSummarizeCompactorFallbackTruncate:
+class TestAsyncSummarizeCompactorFallbackTruncate:
     """Tests for fallback truncation behavior."""
 
     def test_fallback_truncate_removes_oldest_messages(self):
         """_fallback_truncate should remove oldest non-system messages."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         messages = [
             ChatMessage.system("System prompt"),
@@ -501,7 +472,7 @@ class TestSummarizeCompactorFallbackTruncate:
     def test_fallback_truncate_preserves_system_messages(self):
         """_fallback_truncate should preserve all system messages."""
         mock_agent = MagicMock()
-        compactor = SummarizeCompactor(mock_agent)
+        compactor = AsyncSummarizeCompactor(mock_agent)
 
         messages = [
             ChatMessage.system("System 1"),

@@ -225,6 +225,114 @@ for i in range(100):
     print(bot(f"Tell me fact #{i} about space"))
 ```
 
+## LLM-Summarized Long Conversation
+
+For better context retention, use `SummarizeCompactor` which uses an LLM to create summaries instead of simply truncating messages.
+
+```python
+from forge_llm import ChatAgent, ChatSession, SummarizeCompactor
+
+def create_smart_conversation_bot():
+    """Bot that summarizes old messages to retain context."""
+    agent = ChatAgent(provider="openai", model="gpt-4o-mini")
+
+    # SummarizeCompactor uses the agent to generate summaries
+    compactor = SummarizeCompactor(
+        agent=agent,
+        summary_tokens=200,  # Target summary size
+        keep_recent=4,       # Keep last 4 messages intact
+        max_retries=3,       # Retry on API failures
+    )
+
+    session = ChatSession(
+        system_prompt="You are a helpful assistant with memory of our conversation.",
+        max_tokens=4000,
+        compactor=compactor,
+        safety_margin=0.7,
+    )
+
+    def chat(message: str) -> str:
+        response = agent.chat(message, session=session)
+        tokens = session.estimate_tokens()
+        return f"{response.content}\n[~{tokens} tokens used]"
+
+    return chat
+
+# Usage - retains context through summarization
+bot = create_smart_conversation_bot()
+print(bot("My name is Alice and I work as a data scientist"))
+print(bot("I'm interested in machine learning"))
+# ... many messages later, the bot still knows your name via the summary
+print(bot("What do you remember about me?"))
+```
+
+### Custom Summarization Prompt
+
+You can customize the summarization behavior:
+
+```python
+from forge_llm import ChatAgent, ChatSession, SummarizeCompactor
+from forge_llm.prompts import load_prompt
+
+agent = ChatAgent(provider="openai", model="gpt-4o-mini")
+
+# Option 1: Use built-in prompt from prompts module
+compactor = SummarizeCompactor(agent)  # Uses prompts/summarization.md
+
+# Option 2: Custom prompt string
+compactor = SummarizeCompactor(
+    agent,
+    summary_prompt="""Create a brief summary focusing on:
+- Key decisions made
+- User preferences mentioned
+- Important facts
+
+Conversation:
+{messages}
+
+Summary:"""
+)
+
+# Option 3: Load from custom file
+compactor = SummarizeCompactor(
+    agent,
+    prompt_file="my_prompts/custom_summary.md"
+)
+```
+
+### Async Version for High-Performance Applications
+
+```python
+import asyncio
+from forge_llm import AsyncChatAgent, ChatSession, AsyncSummarizeCompactor
+
+async def async_conversation():
+    agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini")
+
+    compactor = AsyncSummarizeCompactor(
+        agent=agent,
+        summary_tokens=200,
+        keep_recent=4,
+    )
+
+    session = ChatSession(
+        system_prompt="You are a helpful assistant.",
+        max_tokens=4000,
+    )
+
+    # For async compaction, call compact() directly when needed
+    messages = session.messages
+    if session.estimate_tokens() > 3000:
+        compacted = await compactor.compact(messages, target_tokens=2000)
+        session._messages = compacted
+
+    response = await agent.chat("Hello!", session=session)
+    return response.content
+
+# Usage
+result = asyncio.run(async_conversation())
+```
+
 ## Batch Processing
 
 ```python
