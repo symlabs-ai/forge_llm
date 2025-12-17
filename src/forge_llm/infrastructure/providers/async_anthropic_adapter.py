@@ -96,10 +96,12 @@ class AsyncAnthropicAdapter:
         response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
         )
 
-        content = response.content[0].text if response.content else ""
+        content = ""
+        if response.content and hasattr(response.content[0], "text"):
+            content = response.content[0].text
         return {
             "content": content,
             "role": response.role,

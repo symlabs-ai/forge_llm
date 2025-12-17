@@ -95,20 +95,21 @@ class AsyncOpenAIAdapter:
 
         response = await client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             timeout=timeout,
         )
 
         choice = response.choices[0]
+        usage = response.usage
         return {
             "content": choice.message.content,
             "role": choice.message.role,
             "model": response.model,
             "provider": "openai",
             "usage": {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
+                "prompt_tokens": usage.prompt_tokens if usage else 0,
+                "completion_tokens": usage.completion_tokens if usage else 0,
+                "total_tokens": usage.total_tokens if usage else 0,
             },
         }
 

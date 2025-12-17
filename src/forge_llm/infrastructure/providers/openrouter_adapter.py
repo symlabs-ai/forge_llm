@@ -330,7 +330,8 @@ class OpenRouterAdapter:
         response.raise_for_status()
 
         data = response.json()
-        return data.get("data", [])
+        models: list[dict[str, Any]] = data.get("data", [])
+        return models
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""

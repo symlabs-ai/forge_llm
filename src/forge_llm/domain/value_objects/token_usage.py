@@ -4,6 +4,7 @@ TokenUsage - Token consumption metrics.
 Value object for tracking token usage in LLM requests.
 """
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class TokenUsage:
     total_tokens: int
 
     @classmethod
-    def from_openai(cls, usage) -> "TokenUsage":
+    def from_openai(cls, usage: Any) -> "TokenUsage":
         """Create from OpenAI usage object."""
         return cls(
             prompt_tokens=usage.prompt_tokens,
@@ -31,7 +32,7 @@ class TokenUsage:
         )
 
     @classmethod
-    def from_anthropic(cls, usage) -> "TokenUsage":
+    def from_anthropic(cls, usage: Any) -> "TokenUsage":
         """Create from Anthropic usage object."""
         input_tokens = usage.input_tokens
         output_tokens = usage.output_tokens

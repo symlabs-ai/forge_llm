@@ -6,7 +6,7 @@ Manages message history, token limits, and context compaction.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from forge_llm.domain import ContextOverflowError
 from forge_llm.domain.entities import ChatMessage
@@ -142,6 +142,7 @@ class ChatSession:
 
     def _auto_compact(self, reserved_tokens: int) -> None:
         """Auto-compact messages to fit within effective limit."""
+        assert self._compactor is not None  # Called only when compactor exists
         effective_max = self.effective_max_tokens
         target = effective_max - reserved_tokens if effective_max else 1000
         self._messages = self._compactor.compact(self._messages, target)
@@ -225,6 +226,6 @@ class ChatSession:
 
         return base_tokens + content_tokens
 
-    def to_dict_list(self) -> list[dict]:
+    def to_dict_list(self) -> list[dict[str, Any]]:
         """Convert messages to list of dicts for API calls."""
         return [m.to_dict() for m in self._messages]
