@@ -18,6 +18,7 @@ class ChatChunk:
         finish_reason: Why generation stopped (if final)
         is_final: Whether this is the last chunk
         usage: Token usage info (only on final chunk)
+        tool_calls: Tool calls data (when finish_reason is "tool_calls")
     """
 
     content: str
@@ -25,6 +26,7 @@ class ChatChunk:
     finish_reason: str | None = None
     is_final: bool = False
     usage: dict[str, int] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
 
     @classmethod
     def from_openai(cls, chunk: Any) -> "ChatChunk":

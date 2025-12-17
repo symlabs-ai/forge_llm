@@ -105,10 +105,14 @@ class TestOpenAIAdapter:
         chunk1 = MagicMock()
         chunk1.choices = [MagicMock()]
         chunk1.choices[0].delta.content = "Hello"
+        chunk1.choices[0].delta.tool_calls = None
+        chunk1.choices[0].finish_reason = None
 
         chunk2 = MagicMock()
         chunk2.choices = [MagicMock()]
         chunk2.choices[0].delta.content = " World"
+        chunk2.choices[0].delta.tool_calls = None
+        chunk2.choices[0].finish_reason = "stop"
 
         mock_client.chat.completions.create.return_value = iter([chunk1, chunk2])
 
@@ -118,6 +122,7 @@ class TestOpenAIAdapter:
 
         chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
-        assert len(chunks) == 2
+        assert len(chunks) == 3  # 2 content chunks + 1 finish chunk
         assert chunks[0]["content"] == "Hello"
         assert chunks[1]["content"] == " World"
+        assert chunks[2]["finish_reason"] == "stop"

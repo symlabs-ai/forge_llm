@@ -125,37 +125,93 @@ class OpenAIAdapter:
         """
         Send messages and stream response chunks.
 
+        Supports tool calls - when tools are provided in config, tool call
+        chunks are yielded with 'tool_calls' key for accumulation.
+
         Args:
             messages: List of message dicts
-            config: Optional request-specific configuration
+            config: Optional request-specific configuration (may include 'tools')
 
         Yields:
-            Response chunks with partial content
+            Response chunks with partial content or tool_calls
         """
         self.validate()
         client = self._get_client()
 
         model = (config or {}).get("model") or self._config.model or "gpt-4"
         timeout = (config or {}).get("timeout") or self._config.timeout
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Starting stream from OpenAI",
             model=model,
             message_count=len(messages),
+            has_tools=tools is not None,
         )
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            timeout=timeout,
-        )
+        # Build request params
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "timeout": timeout,
+        }
+        if tools:
+            request_params["tools"] = tools
+
+        response = client.chat.completions.create(**request_params)
+
+        # Track tool calls being assembled
+        tool_calls_accumulator: dict[int, dict[str, Any]] = {}
 
         for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+            finish_reason = chunk.choices[0].finish_reason
+
+            # Handle content chunks
+            if delta.content:
                 yield {
-                    "content": chunk.choices[0].delta.content,
+                    "content": delta.content,
                     "provider": "openai",
+                }
+
+            # Handle tool call chunks
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls_accumulator:
+                        tool_calls_accumulator[idx] = {
+                            "id": tc.id or "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+
+                    if tc.id:
+                        tool_calls_accumulator[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_calls_accumulator[idx]["function"]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_calls_accumulator[idx]["function"]["arguments"] += (
+                                tc.function.arguments
+                            )
+
+            # When finish_reason is 'tool_calls', yield the accumulated tool calls
+            if finish_reason == "tool_calls" and tool_calls_accumulator:
+                yield {
+                    "content": "",
+                    "provider": "openai",
+                    "tool_calls": list(tool_calls_accumulator.values()),
+                    "finish_reason": "tool_calls",
+                }
+            elif finish_reason:
+                yield {
+                    "content": "",
+                    "provider": "openai",
+                    "finish_reason": finish_reason,
                 }
 
     def _get_client(self) -> OpenAI:

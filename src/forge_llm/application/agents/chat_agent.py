@@ -271,17 +271,23 @@ class ChatAgent:
         messages: str | list[ChatMessage] | None = None,
         config: ChatConfig | None = None,
         session: ChatSession | None = None,
+        auto_execute_tools: bool = True,
     ) -> Generator[ChatChunk, None, None]:
         """
         Send messages and stream response chunks.
+
+        Supports tool execution during streaming. When tools are registered
+        and auto_execute_tools is True, tool calls will be executed and
+        the conversation will continue with tool results.
 
         Args:
             messages: Single message string or list of ChatMessage
             config: Optional chat configuration
             session: Optional ChatSession (uses session.messages if provided)
+            auto_execute_tools: Auto-execute tool calls and continue (default True)
 
         Yields:
-            ChatChunk objects with partial content
+            ChatChunk objects with partial content or tool call info
         """
         provider = self._get_provider()
 
@@ -301,30 +307,111 @@ class ChatAgent:
             message_count=len(msg_list),
         )
 
-        messages_dict = [m.to_dict() for m in msg_list]
-        config_dict = config.to_dict() if config else None
+        # Build config with tools
+        config_dict = config.to_dict() if config else {}
+        tool_defs = self.get_tool_definitions()
+        if tool_defs:
+            config_dict["tools"] = [t.to_openai_format() for t in tool_defs]
 
-        # Collect full response for session
+        # Stream and handle tool calls
+        yield from self._stream_with_tools(
+            provider=provider,
+            msg_list=msg_list,
+            config_dict=config_dict,
+            session=session,
+            auto_execute_tools=auto_execute_tools,
+        )
+
+    def _stream_with_tools(
+        self,
+        provider: ILLMProviderPort,
+        msg_list: list[ChatMessage],
+        config_dict: dict[str, Any],
+        session: ChatSession | None,
+        auto_execute_tools: bool,
+    ) -> Generator[ChatChunk, None, None]:
+        """Stream with tool call handling."""
+        messages_dict = [m.to_dict() for m in msg_list]
         full_content = ""
 
         for chunk_data in provider.stream(messages_dict, config=config_dict):
             content = chunk_data.get("content", "")
             full_content += content
-
-            # Extract finish_reason and usage if present
             finish_reason = chunk_data.get("finish_reason")
             usage = chunk_data.get("usage")
+            tool_calls_data = chunk_data.get("tool_calls")
 
-            yield ChatChunk(
-                content=content,
-                role="assistant",
-                finish_reason=finish_reason,
-                is_final=finish_reason is not None,
-                usage=usage,
-            )
+            # Handle tool calls
+            if (
+                finish_reason == "tool_calls"
+                and tool_calls_data
+                and auto_execute_tools
+                and self._tools is not None
+                and not isinstance(self._tools, list)
+            ):
+                # Yield chunk indicating tool calls
+                yield ChatChunk(
+                    content="",
+                    role="assistant",
+                    finish_reason="tool_calls",
+                    is_final=False,
+                    tool_calls=tool_calls_data,
+                )
+
+                # Parse and execute tool calls
+                tool_calls = [ToolCall.from_openai(tc) for tc in tool_calls_data]
+                tool_results = self.execute_tool_calls(tool_calls)
+
+                # Add assistant message with tool calls to message list
+                assistant_msg = ChatMessage(
+                    role="assistant",
+                    content=full_content if full_content else None,
+                    tool_calls=tool_calls_data,
+                )
+                msg_list.append(assistant_msg)
+                if session is not None:
+                    session.add_message(assistant_msg)
+
+                # Add tool results as messages
+                for tr in tool_results:
+                    tool_msg = ChatMessage(
+                        role="tool",
+                        content=tr.content,
+                        tool_call_id=tr.tool_call_id,
+                    )
+                    msg_list.append(tool_msg)
+                    if session is not None:
+                        session.add_message(tool_msg)
+
+                    # Yield chunk for tool result
+                    yield ChatChunk(
+                        content=f"[Tool {tr.tool_call_id}]: {tr.content}",
+                        role="tool",
+                        is_final=False,
+                    )
+
+                # Continue streaming with tool results
+                yield from self._stream_with_tools(
+                    provider=provider,
+                    msg_list=msg_list,
+                    config_dict=config_dict,
+                    session=session,
+                    auto_execute_tools=auto_execute_tools,
+                )
+                return
+
+            # Regular content chunk
+            if content or finish_reason:
+                yield ChatChunk(
+                    content=content,
+                    role="assistant",
+                    finish_reason=finish_reason,
+                    is_final=finish_reason is not None and finish_reason != "tool_calls",
+                    usage=usage,
+                )
 
         # Add complete response to session
-        if session is not None:
+        if session is not None and full_content:
             session.add_message(ChatMessage.assistant(full_content))
 
     def _normalize_messages(self, messages: str | list[ChatMessage]) -> list[ChatMessage]:
