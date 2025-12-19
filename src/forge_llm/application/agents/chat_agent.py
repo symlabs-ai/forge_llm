@@ -408,6 +408,7 @@ class ChatAgent:
                     finish_reason=finish_reason,
                     is_final=finish_reason is not None and finish_reason != "tool_calls",
                     usage=usage,
+                    tool_calls=tool_calls_data,
                 )
 
         # Add complete response to session
