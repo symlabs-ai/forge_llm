@@ -114,6 +114,59 @@ class TestOpenAIAdapterStreamWithTools:
         args = tool_chunk["tool_calls"][0]["function"]["arguments"]
         assert args == '{"query": "test"}'
 
+    def test_stream_returns_tool_calls_regardless_of_finish_reason_value(self):
+        """FORGE-002 regression: tool_calls should be returned even if finish_reason != 'tool_calls'.
+
+        Bug: The old code had:
+            if finish_reason == "tool_calls" and tool_calls_accumulator:
+                yield {..., "tool_calls": ...}
+            elif finish_reason:
+                yield {...}  # NO tool_calls!
+
+        This meant if finish_reason was anything other than "tool_calls" (edge case),
+        the accumulated tool_calls would be LOST.
+        """
+        from forge_llm.infrastructure.providers.openai_adapter import OpenAIAdapter
+
+        mock_client = MagicMock()
+
+        # Tool call chunk
+        chunk1 = MagicMock()
+        chunk1.choices = [MagicMock()]
+        chunk1.choices[0].delta.content = None
+        chunk1.choices[0].delta.tool_calls = [MagicMock()]
+        chunk1.choices[0].delta.tool_calls[0].index = 0
+        chunk1.choices[0].delta.tool_calls[0].id = "call_456"
+        chunk1.choices[0].delta.tool_calls[0].function = MagicMock()
+        chunk1.choices[0].delta.tool_calls[0].function.name = "get_data"
+        chunk1.choices[0].delta.tool_calls[0].function.arguments = '{"id": 1}'
+        chunk1.choices[0].finish_reason = None
+
+        # Final chunk with DIFFERENT finish_reason (simulating edge case)
+        chunk2 = MagicMock()
+        chunk2.choices = [MagicMock()]
+        chunk2.choices[0].delta.content = None
+        chunk2.choices[0].delta.tool_calls = None
+        chunk2.choices[0].finish_reason = "stop"  # NOT "tool_calls"!
+
+        mock_client.chat.completions.create.return_value = iter([chunk1, chunk2])
+
+        config = ProviderConfig(provider="openai", api_key="test-key")
+        adapter = OpenAIAdapter(config)
+        adapter._client = mock_client
+
+        chunks = list(adapter.stream([{"role": "user", "content": "Get data"}]))
+
+        # BUG: With old code, tool_calls would be None here because finish_reason != "tool_calls"
+        # FIX: tool_calls should ALWAYS be included if they were accumulated
+        final_chunk = next((c for c in chunks if c.get("finish_reason")), None)
+        assert final_chunk is not None
+        assert final_chunk.get("tool_calls") is not None, (
+            "FORGE-002: tool_calls lost when finish_reason != 'tool_calls'"
+        )
+        assert len(final_chunk["tool_calls"]) == 1
+        assert final_chunk["tool_calls"][0]["function"]["name"] == "get_data"
+
 
 class TestAnthropicAdapterStreamWithTools:
     """Tests for Anthropic adapter streaming with tools."""

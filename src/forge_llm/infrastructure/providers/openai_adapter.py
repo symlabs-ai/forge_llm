@@ -102,7 +102,7 @@ class OpenAIAdapter:
 
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": messages,  # type: ignore[arg-type]
+            "messages": messages,
             "timeout": timeout,
         }
         if tools:
@@ -223,20 +223,17 @@ class OpenAIAdapter:
                                 tc.function.arguments
                             )
 
-            # When finish_reason is 'tool_calls', yield the accumulated tool calls
-            if finish_reason == "tool_calls" and tool_calls_accumulator:
-                yield {
-                    "content": "",
-                    "provider": "openai",
-                    "tool_calls": list(tool_calls_accumulator.values()),
-                    "finish_reason": "tool_calls",
-                }
-            elif finish_reason:
-                yield {
+            # When finish_reason is present, yield the final chunk with any accumulated tools
+            if finish_reason:
+                payload = {
                     "content": "",
                     "provider": "openai",
                     "finish_reason": finish_reason,
                 }
+                if tool_calls_accumulator:
+                    payload["tool_calls"] = list(tool_calls_accumulator.values())
+
+                yield payload
 
     def _get_client(self) -> OpenAI:
         """Get or create OpenAI client."""
