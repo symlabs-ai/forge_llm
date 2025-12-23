@@ -276,6 +276,7 @@ class TestProviderConsistency:
         openai_response.choices = [MagicMock()]
         openai_response.choices[0].message.content = "Hello"
         openai_response.choices[0].message.role = "assistant"
+        openai_response.choices[0].message.tool_calls = None  # No tool calls
         openai_response.model = "gpt-4"
         openai_response.usage.prompt_tokens = 10
         openai_response.usage.completion_tokens = 5
@@ -290,6 +291,7 @@ class TestProviderConsistency:
         anthropic_response = MagicMock()
         anthropic_response.content = [MagicMock()]
         anthropic_response.content[0].text = "Hello"
+        anthropic_response.content[0].type = "text"  # Text block, not tool_use
         anthropic_response.role = "assistant"
         anthropic_response.model = "claude-3"
         anthropic_response.usage.input_tokens = 10
@@ -301,8 +303,10 @@ class TestProviderConsistency:
         openai_result = openai_adapter.send([{"role": "user", "content": "Hi"}])
         anthropic_result = anthropic_adapter.send([{"role": "user", "content": "Hi"}])
 
-        # Keys should be identical
-        assert set(openai_result.keys()) == set(anthropic_result.keys())
+        # Base keys should be identical (tool_calls/finish_reason only present when tools used)
+        base_keys = {"content", "role", "model", "provider", "usage"}
+        assert base_keys.issubset(set(openai_result.keys()))
+        assert base_keys.issubset(set(anthropic_result.keys()))
 
     def test_usage_keys_are_identical(self):
         """Both providers return usage with same keys."""
@@ -316,6 +320,7 @@ class TestProviderConsistency:
         openai_response.choices = [MagicMock()]
         openai_response.choices[0].message.content = "Hello"
         openai_response.choices[0].message.role = "assistant"
+        openai_response.choices[0].message.tool_calls = None  # No tool calls
         openai_response.model = "gpt-4"
         openai_response.usage.prompt_tokens = 10
         openai_response.usage.completion_tokens = 5
@@ -330,6 +335,7 @@ class TestProviderConsistency:
         anthropic_response = MagicMock()
         anthropic_response.content = [MagicMock()]
         anthropic_response.content[0].text = "Hello"
+        anthropic_response.content[0].type = "text"  # Text block, not tool_use
         anthropic_response.role = "assistant"
         anthropic_response.model = "claude-3"
         anthropic_response.usage.input_tokens = 10

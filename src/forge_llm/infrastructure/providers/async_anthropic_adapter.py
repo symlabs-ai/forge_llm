@@ -5,6 +5,7 @@ Implements async ILLMProviderPort for Anthropic Claude models.
 """
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
@@ -86,23 +87,50 @@ class AsyncAnthropicAdapter:
             (config or {}).get("model") or self._config.model or "claude-3-sonnet-20240229"
         )
         max_tokens = (config or {}).get("max_tokens", 4096)
+        tools = (config or {}).get("tools")
+
+        # Extract system messages and non-system messages
+        system_prompt, filtered_messages = self._extract_system_prompt(messages)
 
         self._logger.debug(
             "Sending async request to Anthropic",
             model=model,
-            message_count=len(messages),
+            message_count=len(filtered_messages),
+            has_system=system_prompt is not None,
+            has_tools=tools is not None,
         )
 
-        response = await client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=messages,  # type: ignore[arg-type]
-        )
+        # Build request params
+        request_params: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": filtered_messages,
+        }
+        if system_prompt:
+            request_params["system"] = system_prompt
+        if tools:
+            request_params["tools"] = self._convert_tools_to_anthropic(tools)
 
+        response = await client.messages.create(**request_params)
+
+        # Process response content blocks
         content = ""
-        if response.content and hasattr(response.content[0], "text"):
-            content = response.content[0].text
-        return {
+        tool_calls: list[dict[str, Any]] = []
+
+        for block in response.content:
+            if hasattr(block, "text"):
+                content = block.text
+            elif hasattr(block, "type") and block.type == "tool_use":
+                tool_calls.append({
+                    "id": block.id,
+                    "type": "function",
+                    "function": {
+                        "name": block.name,
+                        "arguments": json.dumps(block.input),
+                    },
+                })
+
+        result: dict[str, Any] = {
             "content": content,
             "role": response.role,
             "model": response.model,
@@ -110,9 +138,17 @@ class AsyncAnthropicAdapter:
             "usage": {
                 "prompt_tokens": response.usage.input_tokens,
                 "completion_tokens": response.usage.output_tokens,
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                "total_tokens": (
+                    response.usage.input_tokens + response.usage.output_tokens
+                ),
             },
         }
+
+        if tool_calls:
+            result["tool_calls"] = tool_calls
+            result["finish_reason"] = "tool_calls"
+
+        return result
 
     async def stream(
         self,
@@ -211,6 +247,35 @@ class AsyncAnthropicAdapter:
                             "provider": "anthropic",
                             "finish_reason": "stop",
                         }
+
+    def _extract_system_prompt(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
+        """
+        Extract system messages from message list.
+
+        Anthropic API requires system prompt as separate parameter,
+        not as a message with role "system".
+
+        Args:
+            messages: List of messages with roles
+
+        Returns:
+            Tuple of (system_prompt, filtered_messages)
+        """
+        system_parts = []
+        filtered = []
+
+        for msg in messages:
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                if content:
+                    system_parts.append(content)
+            else:
+                filtered.append(msg)
+
+        system_prompt = "\n\n".join(system_parts) if system_parts else None
+        return system_prompt, filtered
 
     def _convert_tools_to_anthropic(
         self, tools: list[dict[str, Any]]

@@ -86,22 +86,29 @@ class AsyncOpenAIAdapter:
 
         model = (config or {}).get("model") or self._config.model or "gpt-4"
         timeout = (config or {}).get("timeout") or self._config.timeout
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Sending async request to OpenAI",
             model=model,
             message_count=len(messages),
+            has_tools=tools is not None,
         )
 
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,  # type: ignore[arg-type]
-            timeout=timeout,
-        )
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "timeout": timeout,
+        }
+        if tools:
+            request_params["tools"] = tools
+
+        response = await client.chat.completions.create(**request_params)
 
         choice = response.choices[0]
         usage = response.usage
-        return {
+
+        result: dict[str, Any] = {
             "content": choice.message.content,
             "role": choice.message.role,
             "model": response.model,
@@ -112,6 +119,22 @@ class AsyncOpenAIAdapter:
                 "total_tokens": usage.total_tokens if usage else 0,
             },
         }
+
+        if choice.message.tool_calls:
+            result["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in choice.message.tool_calls
+            ]
+            result["finish_reason"] = "tool_calls"
+
+        return result
 
     async def stream(
         self,
