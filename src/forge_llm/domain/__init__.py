@@ -20,6 +20,7 @@ from forge_llm.domain.exceptions import (
     ToolError,
     ToolNotFoundError,
     ToolValidationError,
+    UnsupportedFeatureError,
     UnsupportedProviderError,
 )
 
@@ -28,6 +29,7 @@ __all__ = [
     "ProviderError",
     "ProviderNotConfiguredError",
     "UnsupportedProviderError",
+    "UnsupportedFeatureError",
     "AuthenticationError",
     "ChatError",
     "InvalidMessageError",

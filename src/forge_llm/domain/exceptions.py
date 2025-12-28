@@ -60,6 +60,18 @@ class AuthenticationError(ProviderError):
         self.provider = provider
 
 
+class UnsupportedFeatureError(ProviderError):
+    """Feature is not supported by the provider."""
+
+    def __init__(self, feature: str, provider: str) -> None:
+        super().__init__(
+            f"{feature} is not supported by {provider}",
+            code="UNSUPPORTED_FEATURE",
+        )
+        self.feature = feature
+        self.provider = provider
+
+
 # ============================================
 # Chat Errors (VT-01)
 # ============================================

@@ -100,9 +100,12 @@ class OpenAIAdapter:
             has_tools=tools is not None,
         )
 
+        # Convert messages for OpenAI (handles multimodal content)
+        converted_messages = self._convert_messages_for_openai(messages)
+
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": messages,
+            "messages": converted_messages,
             "timeout": timeout,
         }
         if tools:
@@ -173,10 +176,13 @@ class OpenAIAdapter:
             has_tools=tools is not None,
         )
 
+        # Convert messages for OpenAI (handles multimodal content)
+        converted_messages = self._convert_messages_for_openai(messages)
+
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": messages,
+            "messages": converted_messages,
             "stream": True,
             "timeout": timeout,
         }
@@ -234,6 +240,70 @@ class OpenAIAdapter:
                     payload["tool_calls"] = list(tool_calls_accumulator.values())
 
                 yield payload
+
+    def _convert_messages_for_openai(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Convert messages to OpenAI format, handling multimodal content.
+
+        Ensures content blocks use OpenAI's image_url format.
+        """
+        converted = []
+        for msg in messages:
+            content = msg.get("content")
+
+            if isinstance(content, list):
+                # Convert content blocks to OpenAI format
+                openai_content = []
+                for block in content:
+                    if isinstance(block, dict):
+                        block_type = block.get("type")
+                        if block_type == "text":
+                            openai_content.append({
+                                "type": "text",
+                                "text": block.get("text", ""),
+                            })
+                        elif block_type == "image":
+                            # Convert from canonical format to OpenAI format
+                            source_type = block.get("source_type", "url")
+                            detail = block.get("detail", "auto")
+
+                            if source_type == "url":
+                                url = block.get("url", "")
+                            else:
+                                # Base64: create data URL
+                                media_type = block.get("media_type", "image/jpeg")
+                                data = block.get("data", "")
+                                url = f"data:{media_type};base64,{data}"
+
+                            openai_content.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": url,
+                                    "detail": detail,
+                                },
+                            })
+                        elif block_type == "audio":
+                            # Convert audio to OpenAI input_audio format
+                            openai_content.append({
+                                "type": "input_audio",
+                                "input_audio": {
+                                    "data": block.get("data", ""),
+                                    "format": block.get("format", "wav"),
+                                },
+                            })
+                        else:
+                            # Pass through unknown types
+                            openai_content.append(block)
+                    else:
+                        openai_content.append(block)
+
+                converted.append({**msg, "content": openai_content})
+            else:
+                converted.append(msg)
+
+        return converted
 
     def _get_client(self) -> OpenAI:
         """Get or create OpenAI client."""

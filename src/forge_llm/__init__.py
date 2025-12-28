@@ -33,8 +33,12 @@ from forge_llm.domain.entities import (
     ToolResult,
 )
 from forge_llm.domain.value_objects import (
+    AudioContent,
     ChatResponse,
+    ContentBlock,
+    ImageContent,
     ResponseMetadata,
+    TextContent,
     TokenUsage,
 )
 
@@ -51,6 +55,10 @@ __all__ = [
     "ChatResponse",
     "TokenUsage",
     "ResponseMetadata",
+    "TextContent",
+    "ImageContent",
+    "AudioContent",
+    "ContentBlock",
     # Application
     "AsyncChatAgent",
     "AsyncSummarizeCompactor",

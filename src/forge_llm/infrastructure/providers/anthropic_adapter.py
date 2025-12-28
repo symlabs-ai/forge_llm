@@ -298,6 +298,7 @@ class AnthropicAdapter:
         Handles:
         - assistant messages with tool_calls -> content with tool_use blocks
         - tool messages -> user messages with tool_result blocks
+        - multimodal content -> Anthropic image format
 
         Args:
             messages: List of messages in OpenAI format
@@ -310,17 +311,23 @@ class AnthropicAdapter:
 
         for msg in messages:
             role = msg.get("role")
+            content = msg.get("content")
 
             # Convert assistant message with tool_calls
             if role == "assistant" and msg.get("tool_calls"):
                 content_blocks: list[dict[str, Any]] = []
 
                 # Add text content if present
-                if msg.get("content"):
-                    content_blocks.append({
-                        "type": "text",
-                        "text": msg["content"],
-                    })
+                if content:
+                    if isinstance(content, str):
+                        content_blocks.append({
+                            "type": "text",
+                            "text": content,
+                        })
+                    elif isinstance(content, list):
+                        content_blocks.extend(
+                            self._convert_content_blocks_to_anthropic(content)
+                        )
 
                 # Convert tool_calls to tool_use blocks
                 for tc in msg["tool_calls"]:
@@ -362,8 +369,15 @@ class AnthropicAdapter:
                     })
                     tool_results = []
 
-                # Pass through regular messages
-                converted.append(msg)
+                # Handle multimodal content
+                if isinstance(content, list):
+                    converted.append({
+                        "role": role,
+                        "content": self._convert_content_blocks_to_anthropic(content),
+                    })
+                else:
+                    # Pass through regular messages
+                    converted.append(msg)
 
         # Flush any remaining tool results
         if tool_results:
@@ -373,6 +387,98 @@ class AnthropicAdapter:
             })
 
         return converted
+
+    def _convert_content_blocks_to_anthropic(
+        self, content: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Convert content blocks from canonical/OpenAI format to Anthropic format.
+
+        Handles text and image content blocks.
+
+        Args:
+            content: List of content blocks in canonical format
+
+        Returns:
+            List of content blocks in Anthropic format
+        """
+        anthropic_content = []
+
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type")
+
+            if block_type == "text":
+                anthropic_content.append({
+                    "type": "text",
+                    "text": block.get("text", ""),
+                })
+
+            elif block_type == "image":
+                # From canonical format
+                source_type = block.get("source_type", "url")
+                if source_type == "url":
+                    anthropic_content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "url",
+                            "url": block.get("url", ""),
+                        },
+                    })
+                else:
+                    anthropic_content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": block.get("media_type", "image/jpeg"),
+                            "data": block.get("data", ""),
+                        },
+                    })
+
+            elif block_type == "image_url":
+                # From OpenAI format (handle defensively)
+                image_url = block.get("image_url", {})
+                url = image_url.get("url", "")
+
+                if url.startswith("data:"):
+                    # Parse data URL
+                    # Format: data:image/jpeg;base64,/9j/4AAQ...
+                    try:
+                        header, data = url.split(",", 1)
+                        media_type = header.split(":")[1].split(";")[0]
+                        anthropic_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": data,
+                            },
+                        })
+                    except (ValueError, IndexError):
+                        # Fallback: treat as URL
+                        anthropic_content.append({
+                            "type": "image",
+                            "source": {"type": "url", "url": url},
+                        })
+                else:
+                    anthropic_content.append({
+                        "type": "image",
+                        "source": {"type": "url", "url": url},
+                    })
+
+            elif block_type == "audio":
+                # Audio is not supported by Anthropic
+                from forge_llm.domain.exceptions import UnsupportedFeatureError
+
+                raise UnsupportedFeatureError("Audio input", "anthropic")
+
+            else:
+                # Pass through unknown types
+                anthropic_content.append(block)
+
+        return anthropic_content
 
     def _convert_tools_to_anthropic(
         self, tools: list[dict[str, Any]]
