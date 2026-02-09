@@ -403,6 +403,10 @@ class AsyncChatAgent:
             from forge_llm.infrastructure.providers import AsyncAnthropicAdapter
 
             return AsyncAnthropicAdapter(self._config)
+        if self._provider_name == "xai":
+            from forge_llm.infrastructure.providers import AsyncXAIAdapter
+
+            return AsyncXAIAdapter(self._config)
         from forge_llm.domain import UnsupportedProviderError
 
         raise UnsupportedProviderError(self._provider_name)

@@ -1,0 +1,307 @@
+"""
+AsyncXAIAdapter - Async adapter for xAI (Grok) API.
+
+Implements async ILLMProviderPort for xAI chat completions.
+xAI uses an OpenAI-compatible API with a different base URL.
+"""
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Any
+
+from forge_llm.domain import ProviderNotConfiguredError
+from forge_llm.domain.entities import ProviderConfig
+from forge_llm.infrastructure.logging import LogService
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
+
+XAI_BASE_URL = "https://api.x.ai/v1"
+
+
+class AsyncXAIAdapter:
+    """
+    Async adapter for xAI (Grok) chat completions API.
+
+    Uses the OpenAI SDK with xAI's base URL for async operations.
+
+    Usage:
+        config = ProviderConfig(provider="xai", api_key="xai-...", model="grok-4.1-fast")
+        adapter = AsyncXAIAdapter(config)
+
+        response = await adapter.send([{"role": "user", "content": "Hello"}])
+    """
+
+    SUPPORTED_MODELS = [
+        "grok-4.1-fast",
+        "grok-4-fast",
+        "grok-4",
+        "grok-3-mini-fast",
+        "grok-3-fast",
+        "grok-3-mini",
+        "grok-3",
+    ]
+
+    def __init__(self, config: ProviderConfig) -> None:
+        self._config = config
+        self._client: AsyncOpenAI | None = None
+        self._logger = LogService(__name__)
+
+    @property
+    def name(self) -> str:
+        """Provider name."""
+        return "xai"
+
+    @property
+    def config(self) -> ProviderConfig:
+        """Provider configuration."""
+        return self._config
+
+    def validate(self) -> bool:
+        """
+        Validate provider configuration.
+
+        Returns:
+            True if configuration is valid
+
+        Raises:
+            ProviderNotConfiguredError: If API key is missing
+        """
+        if not self._config.is_configured:
+            raise ProviderNotConfiguredError("xai")
+        return True
+
+    async def send(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Send messages to xAI and get response asynchronously.
+
+        Args:
+            messages: List of message dicts with role and content
+            config: Optional request-specific configuration
+
+        Returns:
+            Response dict with content, role, model, and usage
+        """
+        self.validate()
+        client = self._get_client()
+
+        model = (config or {}).get("model") or self._config.model or "grok-4.1-fast"
+        timeout = (config or {}).get("timeout") or self._config.timeout
+        tools = (config or {}).get("tools")
+
+        self._logger.debug(
+            "Sending async request to xAI",
+            model=model,
+            message_count=len(messages),
+            has_tools=tools is not None,
+        )
+
+        # Convert messages for OpenAI format (handles multimodal content)
+        converted_messages = self._convert_messages_for_openai(messages)
+
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": converted_messages,
+            "timeout": timeout,
+        }
+        if tools:
+            request_params["tools"] = tools
+
+        response = await client.chat.completions.create(**request_params)
+
+        choice = response.choices[0]
+        usage = response.usage
+
+        result: dict[str, Any] = {
+            "content": choice.message.content,
+            "role": choice.message.role,
+            "model": response.model,
+            "provider": "xai",
+            "usage": {
+                "prompt_tokens": usage.prompt_tokens if usage else 0,
+                "completion_tokens": usage.completion_tokens if usage else 0,
+                "total_tokens": usage.total_tokens if usage else 0,
+            },
+        }
+
+        if choice.message.tool_calls:
+            result["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in choice.message.tool_calls
+            ]
+            result["finish_reason"] = "tool_calls"
+
+        return result
+
+    async def stream(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Send messages and stream response chunks asynchronously.
+
+        Args:
+            messages: List of message dicts
+            config: Optional request-specific configuration (may include 'tools')
+
+        Yields:
+            Response chunks with partial content or tool_calls
+        """
+        self.validate()
+        client = self._get_client()
+
+        model = (config or {}).get("model") or self._config.model or "grok-4.1-fast"
+        timeout = (config or {}).get("timeout") or self._config.timeout
+        tools = (config or {}).get("tools")
+
+        self._logger.debug(
+            "Starting async stream from xAI",
+            model=model,
+            message_count=len(messages),
+            has_tools=tools is not None,
+        )
+
+        # Convert messages for OpenAI format (handles multimodal content)
+        converted_messages = self._convert_messages_for_openai(messages)
+
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": converted_messages,
+            "stream": True,
+            "timeout": timeout,
+        }
+        if tools:
+            request_params["tools"] = tools
+
+        response = await client.chat.completions.create(**request_params)
+
+        # Track tool calls being assembled
+        tool_calls_accumulator: dict[int, dict[str, Any]] = {}
+
+        async for chunk in response:
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+            finish_reason = chunk.choices[0].finish_reason
+
+            # Handle content chunks
+            if delta.content:
+                yield {
+                    "content": delta.content,
+                    "provider": "xai",
+                }
+
+            # Handle tool call chunks
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls_accumulator:
+                        tool_calls_accumulator[idx] = {
+                            "id": tc.id or "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+
+                    if tc.id:
+                        tool_calls_accumulator[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_calls_accumulator[idx]["function"]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_calls_accumulator[idx]["function"]["arguments"] += (
+                                tc.function.arguments
+                            )
+
+            # When finish_reason is 'tool_calls', yield the accumulated tool calls
+            if finish_reason == "tool_calls" and tool_calls_accumulator:
+                yield {
+                    "content": "",
+                    "provider": "xai",
+                    "tool_calls": list(tool_calls_accumulator.values()),
+                    "finish_reason": "tool_calls",
+                }
+            elif finish_reason:
+                yield {
+                    "content": "",
+                    "provider": "xai",
+                    "finish_reason": finish_reason,
+                }
+
+    def _convert_messages_for_openai(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Convert messages to OpenAI format, handling multimodal content.
+
+        Ensures content blocks use OpenAI's image_url format.
+        """
+        converted = []
+        for msg in messages:
+            content = msg.get("content")
+
+            if isinstance(content, list):
+                # Convert content blocks to OpenAI format
+                openai_content = []
+                for block in content:
+                    if isinstance(block, dict):
+                        block_type = block.get("type")
+                        if block_type == "text":
+                            openai_content.append({
+                                "type": "text",
+                                "text": block.get("text", ""),
+                            })
+                        elif block_type == "image":
+                            # Convert from canonical format to OpenAI format
+                            source_type = block.get("source_type", "url")
+                            detail = block.get("detail", "auto")
+
+                            if source_type == "url":
+                                url = block.get("url", "")
+                            else:
+                                # Base64: create data URL
+                                media_type = block.get("media_type", "image/jpeg")
+                                data = block.get("data", "")
+                                url = f"data:{media_type};base64,{data}"
+
+                            openai_content.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": url,
+                                    "detail": detail,
+                                },
+                            })
+                        else:
+                            # Pass through unknown types (including image_url)
+                            openai_content.append(block)
+                    else:
+                        openai_content.append(block)
+
+                converted.append({**msg, "content": openai_content})
+            else:
+                converted.append(msg)
+
+        return converted
+
+    def _get_client(self) -> AsyncOpenAI:
+        """Get or create async OpenAI client configured for xAI."""
+        if self._client is None:
+            from openai import AsyncOpenAI
+
+            self._client = AsyncOpenAI(
+                api_key=self._config.api_key,
+                base_url=self._config.base_url or XAI_BASE_URL,
+            )
+        return self._client
