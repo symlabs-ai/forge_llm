@@ -10,6 +10,7 @@ import pytest
 from forge_llm.domain import UnsupportedProviderError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.providers.registry import (
+    ModelListResult,
     ProviderMetadata,
     ProviderRegistry,
     get_provider_registry,
@@ -118,7 +119,10 @@ class TestProviderRegistry:
             "test-provider", {"api_key": "sk-test"},
         )
 
-        assert result == ["model-a", "model-b"]
+        assert isinstance(result, ModelListResult)
+        assert result.models == ["model-a", "model-b"]
+        assert result.source == "api"
+        assert result.error is None
         mock_provider.list_models.assert_called_once()
 
     def test_list_available_models_dict_without_provider_key(self):
@@ -135,7 +139,8 @@ class TestProviderRegistry:
         registry.register("mytest", mock_factory)
 
         result = registry.list_available_models("mytest", {"api_key": "key"})
-        assert result == ["m1"]
+        assert result.models == ["m1"]
+        assert result.source == "api"
 
     def test_list_available_models_with_provider_config(self):
         """list_available_models still works with ProviderConfig directly."""
@@ -148,7 +153,8 @@ class TestProviderRegistry:
 
         config = ProviderConfig(provider="test", api_key="sk-test")
         result = registry.list_available_models("test", config)
-        assert result == ["m1"]
+        assert result.models == ["m1"]
+        assert result.source == "api"
 
     def test_list_available_models_fallback_on_failure(self):
         """Falls back to known_models when list_models raises."""
@@ -166,4 +172,88 @@ class TestProviderRegistry:
         result = registry.list_available_models(
             "test", {"api_key": "sk-test"},
         )
-        assert result == ["fallback-model"]
+        assert result.models == ["fallback-model"]
+        assert result.source == "fallback"
+        assert result.error == "API error"
+
+    def test_list_available_models_no_list_models_method(self):
+        """Providers without list_models return fallback source."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock(spec=[])  # no list_models attribute
+
+        registry.register(
+            "static-only",
+            lambda config: mock_provider,
+            metadata=ProviderMetadata(known_models=["static-a", "static-b"]),
+        )
+
+        result = registry.list_available_models(
+            "static-only", {"api_key": "sk-test"},
+        )
+        assert result.models == ["static-a", "static-b"]
+        assert result.source == "fallback"
+        assert result.error is None
+
+    def test_list_providers_with_models_uses_dynamic_when_configs_given(self):
+        """list_providers_with_models uses API when configs are provided."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.return_value = ["gpt-5", "gpt-5-mini"]
+
+        registry.register(
+            "openai",
+            lambda config: mock_provider,
+            metadata=ProviderMetadata(
+                known_models=["gpt-4"],
+                default_base_url="https://api.openai.com/v1",
+            ),
+        )
+
+        result = registry.list_providers_with_models(
+            configs={"openai": {"api_key": "sk-test"}},
+        )
+
+        assert result["openai"]["models"] == ["gpt-5", "gpt-5-mini"]
+        assert result["openai"]["dynamic"] is True
+        assert result["openai"]["source"] == "api"
+
+    def test_list_providers_with_models_static_without_configs(self):
+        """list_providers_with_models returns static when no configs."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.return_value = ["gpt-5"]
+
+        registry.register(
+            "openai",
+            lambda config: mock_provider,
+            metadata=ProviderMetadata(known_models=["gpt-4"]),
+        )
+
+        result = registry.list_providers_with_models()
+
+        assert result["openai"]["models"] == ["gpt-4"]
+        assert "dynamic" not in result["openai"]
+
+    def test_list_providers_with_models_fallback_on_api_failure(self):
+        """list_providers_with_models falls back gracefully on API error."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.side_effect = RuntimeError("timeout")
+
+        registry.register(
+            "openai",
+            lambda config: mock_provider,
+            metadata=ProviderMetadata(known_models=["gpt-4"]),
+        )
+
+        result = registry.list_providers_with_models(
+            configs={"openai": {"api_key": "sk-test"}},
+        )
+
+        assert result["openai"]["models"] == ["gpt-4"]
+        assert result["openai"]["source"] == "fallback"
+        assert result["openai"]["error"] == "timeout"

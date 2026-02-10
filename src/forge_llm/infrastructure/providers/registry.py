@@ -36,6 +36,21 @@ class ProviderMetadata:
     is_local: bool = False
 
 
+@dataclass(frozen=True)
+class ModelListResult:
+    """Result of a model listing operation.
+
+    Attributes:
+        models: List of model identifiers.
+        source: Where the models came from ("api" or "fallback").
+        error: Error message if the API call failed and we fell back.
+    """
+
+    models: list[str]
+    source: str  # "api" | "fallback"
+    error: str | None = None
+
+
 class ProviderRegistry:
     """
     Registry for LLM provider adapters.
@@ -178,24 +193,43 @@ class ProviderRegistry:
             "is_local": False,
         }
 
-    def list_providers_with_models(self) -> dict[str, dict[str, Any]]:
+    def list_providers_with_models(
+        self,
+        configs: dict[str, ProviderConfig | dict] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         """
         List all providers with their supported models.
 
-        Returns known/static model lists without requiring API credentials.
-        For dynamic (real-time) model listing, use list_available_models().
+        When ``configs`` is provided, attempts dynamic (real-time) model
+        listing for each provider that has credentials.  Falls back to
+        static known_models per provider on failure.
+
+        Args:
+            configs: Optional mapping of provider name → config with
+                     credentials.  Only providers present here will
+                     attempt a live API call.
 
         Returns:
-            Dict mapping provider name to provider info
+            Dict mapping provider name to provider info.
+            When dynamic listing is used, each entry also contains
+            ``"dynamic": True`` and ``"source": "api"|"fallback"``.
         """
         result = {}
         for name in self._factories:
-            result[name] = self.get_provider_info(name)
+            info = self.get_provider_info(name)
+            if configs and name in configs:
+                lr = self.list_available_models(name, configs[name])
+                info["models"] = lr.models
+                info["source"] = lr.source
+                info["dynamic"] = True
+                if lr.error:
+                    info["error"] = lr.error
+            result[name] = info
         return result
 
     def list_available_models(
         self, name: str, config: ProviderConfig | dict,
-    ) -> list[str]:
+    ) -> ModelListResult:
         """
         Fetch available models dynamically from a provider's API.
 
@@ -209,7 +243,8 @@ class ProviderRegistry:
                     Accepts ProviderConfig or a dict (auto-converted).
 
         Returns:
-            List of model identifiers
+            ModelListResult with models, source ("api" or "fallback"),
+            and optional error message.
 
         Raises:
             UnsupportedProviderError: If provider not registered
@@ -229,18 +264,28 @@ class ProviderRegistry:
                 raw = provider.list_models()
                 # Normalize: some adapters return list[dict], others list[str]
                 if raw and isinstance(raw[0], dict):
-                    return [m["id"] for m in raw if "id" in m]
-                return list(raw)
+                    models = [m["id"] for m in raw if "id" in m]
+                else:
+                    models = list(raw)
+                return ModelListResult(models=models, source="api")
             except Exception as e:
                 self._logger.warning(
                     "Failed to fetch models dynamically, falling back to known_models",
                     provider=name,
                     error=str(e),
                 )
+                meta = self._metadata.get(name)
+                fallback = list(meta.known_models) if meta else []
+                return ModelListResult(
+                    models=fallback, source="fallback", error=str(e),
+                )
 
-        # Fallback to static metadata
+        # No list_models method — static-only provider
         meta = self._metadata.get(name)
-        return list(meta.known_models) if meta else []
+        return ModelListResult(
+            models=list(meta.known_models) if meta else [],
+            source="fallback",
+        )
 
     def clear(self) -> None:
         """Clear all registrations."""

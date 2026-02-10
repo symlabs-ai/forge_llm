@@ -37,6 +37,20 @@ class AsyncOpenAIAdapter:
         "o1-mini",
     ]
 
+    # Prefixes for non-chat models (TTS, embeddings, moderation, etc.)
+    _NON_CHAT_PREFIXES = (
+        "tts-",
+        "whisper-",
+        "dall-e-",
+        "text-embedding-",
+        "text-moderation-",
+        "babbage-",
+        "davinci-",
+        "canary-",
+        "ft:",
+        "omni-moderation-",
+    )
+
     def __init__(self, config: ProviderConfig) -> None:
         self._config = config
         self._client: AsyncOpenAI | None = None
@@ -67,15 +81,20 @@ class AsyncOpenAIAdapter:
         return True
 
     async def list_models(self) -> list[str]:
-        """Fetch available models from the OpenAI API asynchronously.
+        """Fetch available chat models from the OpenAI API asynchronously.
+
+        Filters out non-chat models (TTS, whisper, embedding, moderation, etc.).
 
         Returns:
-            Sorted list of model identifiers.
+            Sorted list of chat-capable model identifiers.
         """
         self.validate()
         client = self._get_client()
         response = await client.models.list()
-        return sorted(m.id for m in response.data)
+        return sorted(
+            m.id for m in response.data
+            if not m.id.startswith(self._NON_CHAT_PREFIXES)
+        )
 
     async def send(
         self,

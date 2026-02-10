@@ -256,3 +256,72 @@ class TestOpenAIAdapter:
         assert final_tool_call['id'] == 'call_123'
         assert final_tool_call['function']['name'] == 'get_weather'
         assert final_tool_call['function']['arguments'] == '{"location":"Tokyo"}'
+
+    def test_list_models_filters_non_chat_models(self):
+        """list_models() should filter out TTS, whisper, embedding, etc."""
+        mock_client = MagicMock()
+
+        # Simulate API response with chat and non-chat models
+        mock_models = []
+        all_model_ids = [
+            # Chat models (should be kept)
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4",
+            "gpt-3.5-turbo",
+            "o3",
+            "o3-mini",
+            "o4-mini",
+            # Non-chat models (should be filtered out)
+            "tts-1",
+            "tts-1-hd",
+            "whisper-1",
+            "dall-e-3",
+            "dall-e-2",
+            "text-embedding-3-large",
+            "text-embedding-3-small",
+            "text-embedding-ada-002",
+            "text-moderation-latest",
+            "babbage-002",
+            "davinci-002",
+            "omni-moderation-latest",
+            "ft:gpt-4o:my-org:custom:id",
+            "canary-tts",
+        ]
+        for mid in all_model_ids:
+            m = MagicMock()
+            m.id = mid
+            mock_models.append(m)
+
+        mock_response = MagicMock()
+        mock_response.data = mock_models
+        mock_client.models.list.return_value = mock_response
+
+        config = ProviderConfig(provider="openai", api_key="test-key")
+        adapter = OpenAIAdapter(config)
+        adapter._client = mock_client
+
+        result = adapter.list_models()
+
+        # Verify chat models are present
+        assert "gpt-5" in result
+        assert "gpt-5-mini" in result
+        assert "gpt-4o" in result
+        assert "o3" in result
+
+        # Verify non-chat models are filtered out
+        assert "tts-1" not in result
+        assert "whisper-1" not in result
+        assert "dall-e-3" not in result
+        assert "text-embedding-3-large" not in result
+        assert "text-moderation-latest" not in result
+        assert "babbage-002" not in result
+        assert "davinci-002" not in result
+        assert "omni-moderation-latest" not in result
+        assert "canary-tts" not in result
+
+        # Verify fine-tuned models are filtered out
+        filtered_ft = [m for m in result if m.startswith("ft:")]
+        assert filtered_ft == []
