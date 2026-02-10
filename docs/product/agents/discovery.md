@@ -12,7 +12,7 @@ print(guide)
 
 ## O que é ForgeLLM?
 
-ForgeLLM é uma biblioteca Python para interação com LLMs (Large Language Models) com **portabilidade entre provedores**. O mesmo código funciona com OpenAI, Anthropic, Ollama e OpenRouter.
+ForgeLLM é uma biblioteca Python para interação com LLMs (Large Language Models) com **portabilidade entre provedores**. O mesmo código funciona com OpenAI, Anthropic, Ollama, OpenRouter, xAI (Grok), Claude Code CLI e Codex CLI.
 
 ## API Principal
 
@@ -23,7 +23,7 @@ from forge_llm import ChatAgent
 
 # Criar agente (chave API carregada do ambiente automaticamente)
 agent = ChatAgent(
-    provider="openai",      # ou "anthropic", "ollama", "openrouter"
+    provider="openai",      # ou "anthropic", "ollama", "openrouter", "xai", "claude-code", "codex"
     model="gpt-4o-mini",    # modelo específico do provedor
 )
 
@@ -77,6 +77,32 @@ response = agent.chat("Qual é o clima em Paris?")
 | Anthropic | `ANTHROPIC_API_KEY` | claude-3-opus, claude-3-sonnet, claude-3-haiku |
 | Ollama | (local) | llama2, mistral, etc. |
 | OpenRouter | `OPENROUTER_API_KEY` | Todos os modelos roteados |
+| xAI | `XAI_API_KEY` | grok-3-mini-fast, grok-3, grok-4 |
+| Claude Code | (CLI auth) | sonnet, opus, haiku |
+| Codex | (CLI auth) | o3, o4-mini, codex-mini |
+
+### CLI Coding Agents
+
+```python
+from forge_llm import ChatAgent
+
+# Claude Code — requer `claude` CLI instalado
+agent = ChatAgent(provider="claude-code", model="sonnet")
+response = agent.chat("Explique este projeto")
+
+# Codex — requer `codex` CLI instalado
+agent = ChatAgent(provider="codex", model="o4-mini")
+response = agent.chat("Liste os TODOs do codebase")
+
+# Com working_dir e yolo_mode (execução autônoma)
+agent = ChatAgent(
+    provider="claude-code",
+    model="sonnet",
+    yolo_mode=True,
+    working_dir="/home/user/meu-projeto",
+)
+response = agent.chat("Corrija os testes falhando")
+```
 
 ## Exceções
 

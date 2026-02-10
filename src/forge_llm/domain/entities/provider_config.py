@@ -27,9 +27,11 @@ class ProviderConfig:
     base_url: str | None = None
     timeout: float = 60.0
     max_retries: int = 3
+    yolo_mode: bool = False
+    working_dir: str | None = None
 
     # Providers that don't require API keys
-    LOCAL_PROVIDERS = frozenset({"ollama"})
+    LOCAL_PROVIDERS = frozenset({"ollama", "claude-code", "codex"})
 
     @property
     def env_key(self) -> str:

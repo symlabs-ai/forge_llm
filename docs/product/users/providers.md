@@ -10,6 +10,8 @@ ForgeLLM supports multiple LLM providers with a unified interface.
 | Anthropic | `ANTHROPIC_API_KEY` | claude-3-opus, claude-3-sonnet, claude-3-haiku |
 | Ollama | (none - local) | All local models |
 | OpenRouter | `OPENROUTER_API_KEY` | All routed models |
+| Claude Code | (none - CLI auth) | sonnet, opus, haiku |
+| Codex | (none - CLI auth) | o3, o4-mini, codex-mini |
 
 ## OpenAI
 
@@ -115,6 +117,100 @@ Examples:
 - `openai/gpt-4o`
 - `anthropic/claude-3-opus`
 - `meta-llama/llama-3-70b-instruct`
+
+## Claude Code (CLI)
+
+Coding agent via Claude Code CLI. Requires `claude` installed and authenticated.
+
+```python
+from forge_llm import ChatAgent
+
+# Basic usage
+agent = ChatAgent(provider="claude-code", model="sonnet")
+response = agent.chat("Explain what this project does")
+print(response.content)
+
+# With working directory
+agent = ChatAgent(
+    provider="claude-code",
+    model="sonnet",
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("List all TODO comments in the codebase")
+print(response.content)
+
+# YOLO mode (autonomous execution, no permission prompts)
+agent = ChatAgent(
+    provider="claude-code",
+    model="opus",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Fix the failing tests")
+print(response.content)
+```
+
+### Requirements
+
+1. Install Claude Code: https://docs.anthropic.com/en/docs/claude-code
+2. Authenticate: `claude login`
+
+### Supported Models
+
+- `sonnet` - Fast, balanced
+- `opus` - Most capable
+- `haiku` - Fastest, cheapest
+
+### Streaming
+
+```python
+agent = ChatAgent(provider="claude-code", model="sonnet")
+for chunk in agent.stream_chat("Refactor the main module"):
+    print(chunk.content, end="", flush=True)
+```
+
+## Codex (CLI)
+
+Coding agent via OpenAI Codex CLI. Requires `codex` installed and authenticated.
+
+```python
+from forge_llm import ChatAgent
+
+# Basic usage
+agent = ChatAgent(provider="codex", model="o4-mini")
+response = agent.chat("Explain what this project does")
+print(response.content)
+
+# With working directory
+agent = ChatAgent(
+    provider="codex",
+    model="o3",
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Find and fix the memory leak")
+print(response.content)
+
+# YOLO mode (full-auto, no permission prompts)
+agent = ChatAgent(
+    provider="codex",
+    model="o4-mini",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Add unit tests for the auth module")
+print(response.content)
+```
+
+### Requirements
+
+1. Install Codex: `npm i -g @openai/codex`
+2. Authenticate via `OPENAI_API_KEY` env variable
+
+### Supported Models
+
+- `o3` - Most capable reasoning model
+- `o4-mini` - Fast, cost-efficient
+- `codex-mini` - Optimized for code
 
 ## Provider Portability
 

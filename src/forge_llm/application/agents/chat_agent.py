@@ -431,23 +431,10 @@ class ChatAgent:
 
     def _create_provider(self) -> ILLMProviderPort:
         """Create provider adapter based on name."""
-        if self._provider_name == "openai":
-            from forge_llm.infrastructure.providers import OpenAIAdapter
-            return OpenAIAdapter(self._config)
-        if self._provider_name == "anthropic":
-            from forge_llm.infrastructure.providers import AnthropicAdapter
-            return AnthropicAdapter(self._config)
-        if self._provider_name == "ollama":
-            from forge_llm.infrastructure.providers import OllamaAdapter
-            return OllamaAdapter(self._config)
-        if self._provider_name == "openrouter":
-            from forge_llm.infrastructure.providers import OpenRouterAdapter
-            return OpenRouterAdapter(self._config)
-        if self._provider_name == "xai":
-            from forge_llm.infrastructure.providers import XAIAdapter
-            return XAIAdapter(self._config)
-        from forge_llm.domain import UnsupportedProviderError
-        raise UnsupportedProviderError(self._provider_name)
+        from forge_llm.infrastructure.providers.registry import get_provider_registry
+
+        registry = get_provider_registry()
+        return registry.resolve(self._provider_name, self._config)
 
     def _build_response(self, result: dict[str, Any]) -> ChatResponse:
         """Build ChatResponse from provider result."""

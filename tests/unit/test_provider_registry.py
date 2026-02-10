@@ -84,11 +84,14 @@ class TestProviderRegistry:
         assert registry1 is registry2
 
     def test_reset_clears_all_providers(self):
-        """reset_provider_registry clears all registrations."""
+        """reset_provider_registry clears custom registrations."""
         registry = get_provider_registry()
-        registry.register("openai", MagicMock)
+        registry.register("custom_test", MagicMock)
+        assert registry.has_provider("custom_test") is True
 
         reset_provider_registry()
         registry = get_provider_registry()
 
-        assert registry.has_provider("openai") is False
+        assert registry.has_provider("custom_test") is False
+        # Defaults are re-registered
+        assert registry.has_provider("openai") is True

@@ -150,6 +150,8 @@ PluginRegistry ..> OpenAIProvider : maps provider/openai
 PluginRegistry ..> CodexProvider : maps provider/codex
 
 @enduml```
+
+
 Componentes e Responsabilidades
 AgentBase
 Classe base abstrata dos agentes.

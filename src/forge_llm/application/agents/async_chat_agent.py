@@ -395,21 +395,10 @@ class AsyncChatAgent:
 
     def _create_provider(self) -> IAsyncLLMProviderPort:
         """Create async provider adapter based on name."""
-        if self._provider_name == "openai":
-            from forge_llm.infrastructure.providers import AsyncOpenAIAdapter
+        from forge_llm.infrastructure.providers.registry import get_provider_registry
 
-            return AsyncOpenAIAdapter(self._config)
-        if self._provider_name == "anthropic":
-            from forge_llm.infrastructure.providers import AsyncAnthropicAdapter
-
-            return AsyncAnthropicAdapter(self._config)
-        if self._provider_name == "xai":
-            from forge_llm.infrastructure.providers import AsyncXAIAdapter
-
-            return AsyncXAIAdapter(self._config)
-        from forge_llm.domain import UnsupportedProviderError
-
-        raise UnsupportedProviderError(self._provider_name)
+        registry = get_provider_registry()
+        return registry.resolve_async(self._provider_name, self._config)
 
     def _build_response(self, result: dict[str, Any]) -> ChatResponse:
         """Build ChatResponse from provider result."""

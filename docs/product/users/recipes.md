@@ -26,6 +26,59 @@ print(qa("What is Python?"))
 print(qa("Give me an example"))  # Has context from previous question
 ```
 
+## CLI Coding Agent
+
+Use Claude Code or Codex as an autonomous coding agent:
+
+```python
+from forge_llm import ChatAgent
+
+# Claude Code with yolo mode for autonomous execution
+agent = ChatAgent(
+    provider="claude-code",
+    model="sonnet",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+
+# Ask the agent to perform coding tasks
+response = agent.chat("Fix the failing tests")
+print(response.content)
+print(response.token_usage)
+
+# Stream the response in real-time
+for chunk in agent.stream_chat("Refactor the main module"):
+    print(chunk.content, end="", flush=True)
+```
+
+### Multi-Agent Fallback (CLI + API)
+
+```python
+from forge_llm import ChatAgent
+from forge_llm.domain import ProviderNotConfiguredError
+
+def coding_agent(task: str) -> str:
+    """Try CLI agents first, fall back to API."""
+    providers = [
+        {"provider": "claude-code", "model": "sonnet", "yolo_mode": True},
+        {"provider": "codex", "model": "o4-mini", "yolo_mode": True},
+        {"provider": "openai", "model": "gpt-4o"},
+    ]
+
+    for config in providers:
+        try:
+            agent = ChatAgent(**config)
+            response = agent.chat(task)
+            return response.content
+        except (ProviderNotConfiguredError, Exception) as e:
+            print(f"{config['provider']} failed: {e}")
+            continue
+
+    raise Exception("All providers failed")
+
+result = coding_agent("Add type hints to utils.py")
+```
+
 ## Code Assistant
 
 ```python

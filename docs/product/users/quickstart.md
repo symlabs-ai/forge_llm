@@ -45,6 +45,20 @@ response = agent.chat("Explain machine learning in one sentence.")
 print(response.content)
 ```
 
+### With CLI Coding Agents
+
+```python
+# Claude Code (requires `claude` CLI)
+agent = ChatAgent(provider="claude-code", model="sonnet")
+response = agent.chat("Explain this codebase")
+print(response.content)
+
+# Codex (requires `codex` CLI)
+agent = ChatAgent(provider="codex", model="o4-mini")
+response = agent.chat("List all TODO comments")
+print(response.content)
+```
+
 ### Streaming Responses
 
 ```python

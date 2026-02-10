@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CLI Coding Agent providers** - Support for coding agents via subprocess
+  - `ClaudeCodeAdapter` for Claude Code CLI (`claude -p`)
+  - `CodexAdapter` for OpenAI Codex CLI (`codex exec`)
+  - Both registered in `ProviderRegistry` as sync-only providers
+  - `yolo_mode` flag for autonomous execution (no permission prompts)
+  - `working_dir` config for setting CLI working directory
+  - E2E tests with real CLIs (`test_real_claude_code.py`, `test_real_codex.py`)
+  - Documentation: [Providers](docs/product/users/providers.md), [Quickstart](docs/product/users/quickstart.md), [Recipes](docs/product/users/recipes.md)
+- **xAI (Grok) provider** - Full support for xAI chat completions
+  - Sync and async adapters (`XAIAdapter`, `AsyncXAIAdapter`)
+  - Streaming support
+  - Default model: `grok-4.1-fast`
+  - E2E tests with real API (`test_real_xai.py`)
+- **ProviderRegistry plugin architecture** - Dynamic provider registration
+  - `register_async()` and `resolve_async()` for async providers
+  - `has_async_provider()` for checking async provider availability
+  - `_register_defaults()` with lazy imports for all built-in providers
+  - Auto-registration on first `get_provider_registry()` call
+  - Custom provider registration: `get_provider_registry().register("my_provider", MyAdapter)`
+- **OpenRouter E2E tests** (`test_real_openrouter.py`)
+
+### Changed
+- `ChatAgent._create_provider()` now uses `ProviderRegistry.resolve()` instead of if/elif chain
+- `AsyncChatAgent._create_provider()` now uses `ProviderRegistry.resolve_async()` instead of if/elif chain
+- Removed instance cache from `ProviderRegistry` (agents manage their own `self._provider`)
+- Adding a new provider now requires only registering it in the registry
+- Test suite expanded to 664+ tests
+
 ## [0.5.0] - 2024-12-28
 
 ### Added

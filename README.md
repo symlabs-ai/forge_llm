@@ -1,6 +1,6 @@
 # ForgeLLM
 
-[![Tests](https://img.shields.io/badge/tests-576%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
 [![Version](https://img.shields.io/badge/version-0.5.0-blue)]()
@@ -32,7 +32,9 @@ Documentação completa: [docs/product/agents/](./docs/product/agents/)
 
 ## Features
 
-- **Provider Portability**: Same code works with OpenAI, Anthropic, Ollama, and OpenRouter
+- **Provider Portability**: Same code works with OpenAI, Anthropic, xAI (Grok), Ollama, OpenRouter, Claude Code CLI, and Codex CLI
+- **CLI Coding Agents**: Run Claude Code and OpenAI Codex as providers via subprocess
+- **Plugin Architecture**: Register custom providers via `ProviderRegistry`
 - **Multimodal Support**: Send images (URL/Base64) and audio (WAV/MP3) to vision and speech models
 - **Async Support**: Non-blocking async/await API for high-throughput applications
 - **Tool Calling**: Define custom tools that LLMs can invoke automatically
@@ -232,6 +234,77 @@ agent = ChatAgent(
 response = agent.chat("Hello!")
 ```
 
+### xAI (Grok)
+
+```python
+from forge_llm import ChatAgent
+
+agent = ChatAgent(
+    provider="xai",
+    api_key="xai-...",
+    model="grok-3-mini-fast",
+)
+
+response = agent.chat("Hello!")
+```
+
+### Claude Code (CLI)
+
+```python
+from forge_llm import ChatAgent
+
+# Basic usage — requires `claude` CLI installed
+agent = ChatAgent(provider="claude-code", model="sonnet")
+response = agent.chat("Explain what this project does")
+print(response.content)
+
+# With working directory and yolo mode (autonomous, no permission prompts)
+agent = ChatAgent(
+    provider="claude-code",
+    model="sonnet",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Fix the failing tests")
+
+# Streaming
+for chunk in agent.stream_chat("Refactor the main module"):
+    print(chunk.content, end="", flush=True)
+```
+
+### Codex (CLI)
+
+```python
+from forge_llm import ChatAgent
+
+# Basic usage — requires `codex` CLI installed
+agent = ChatAgent(provider="codex", model="o4-mini")
+response = agent.chat("List all TODO comments in the codebase")
+print(response.content)
+
+# With working directory and yolo mode (full-auto)
+agent = ChatAgent(
+    provider="codex",
+    model="o3",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Add unit tests for the auth module")
+```
+
+### Custom Providers
+
+```python
+from forge_llm.infrastructure.providers.registry import get_provider_registry
+
+# Register a custom provider
+registry = get_provider_registry()
+registry.register("my_provider", MyCustomAdapter)
+
+# Use it like any built-in provider
+agent = ChatAgent(provider="my_provider", api_key="...")
+```
+
 ### Local LLMs with Ollama
 
 ```python
@@ -273,7 +346,10 @@ with LogService.correlation_context() as correlation_id:
 | OpenAI | gpt-4, gpt-4-turbo, gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-preview, o1-mini | ✅ | ✅ (gpt-4o-audio-preview) | Direct API |
 | Anthropic | claude-3-opus, claude-3-sonnet, claude-3-haiku, claude-3-5-sonnet | ✅ | ❌ | Direct API |
 | Ollama | llama3, mistral, codellama, and any Ollama model | ⚠️ | ❌ | Local deployment |
+| xAI | grok-4.1-fast, grok-4-fast, grok-4, grok-3-mini-fast, grok-3-fast, grok-3-mini, grok-3 | ❌ | ❌ | Direct API |
 | OpenRouter | 100+ models from OpenAI, Anthropic, Google, Meta, Mistral | ⚠️ | ⚠️ | Depends on model |
+| Claude Code | sonnet, opus, haiku | ❌ | ❌ | CLI subprocess |
+| Codex | o3, o4-mini, codex-mini | ❌ | ❌ | CLI subprocess |
 
 ## Architecture
 
@@ -295,6 +371,19 @@ src/forge_llm/
     ├── logging.py        # Structured JSON logging with structlog
     └── resilience.py     # Retry with exponential backoff
 ```
+
+## Documentation
+
+- [Quickstart](./docs/product/users/quickstart.md) - Get started in 5 minutes
+- [Providers](./docs/product/users/providers.md) - All providers: OpenAI, Anthropic, Ollama, xAI, OpenRouter, Claude Code, Codex
+- [API Reference](./docs/product/users/api-reference.md) - Complete API documentation
+- [Streaming](./docs/product/users/streaming.md) - Real-time response streaming
+- [Tools](./docs/product/users/tools.md) - Tool calling and function definitions
+- [Sessions](./docs/product/users/sessions.md) - Session management and compaction
+- [Multimodal](./docs/product/users/multimodal.md) - Images and audio input
+- [Recipes](./docs/product/users/recipes.md) - Common patterns: CLI agents, fallbacks, batch processing
+- [Error Handling](./docs/product/users/error-handling.md) - Exception handling
+- [AI Agent Discovery](./docs/product/agents/discovery.md) - Programmatic API discovery for AI agents
 
 ## Examples
 

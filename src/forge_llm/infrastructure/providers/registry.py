@@ -1,13 +1,13 @@
 """
 ProviderRegistry - Specialized registry for LLM provider adapters.
 
-This registry manages provider adapter factories and instances,
+This registry manages provider adapter factories,
 allowing dynamic registration and resolution of providers.
 """
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from forge_llm.application.ports import ILLMProviderPort
+from forge_llm.application.ports import IAsyncLLMProviderPort, ILLMProviderPort
 from forge_llm.domain import UnsupportedProviderError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.logging import LogService
@@ -15,6 +15,7 @@ from forge_llm.infrastructure.logging import LogService
 T = TypeVar("T", bound=ILLMProviderPort)
 
 ProviderFactory = Callable[[ProviderConfig], ILLMProviderPort]
+AsyncProviderFactory = Callable[[ProviderConfig], IAsyncLLMProviderPort]
 
 
 class ProviderRegistry:
@@ -34,7 +35,7 @@ class ProviderRegistry:
 
     def __init__(self) -> None:
         self._factories: dict[str, ProviderFactory] = {}
-        self._instances: dict[str, ILLMProviderPort] = {}
+        self._async_factories: dict[str, AsyncProviderFactory] = {}
         self._logger = LogService(__name__)
 
     def register(self, name: str, factory: ProviderFactory) -> None:
@@ -47,6 +48,17 @@ class ProviderRegistry:
         """
         self._factories[name] = factory
         self._logger.info("Provider registered", provider=name)
+
+    def register_async(self, name: str, factory: AsyncProviderFactory) -> None:
+        """
+        Register an async provider adapter factory.
+
+        Args:
+            name: Provider name (e.g., "openai", "anthropic")
+            factory: Factory function or class that creates async provider instances
+        """
+        self._async_factories[name] = factory
+        self._logger.info("Async provider registered", provider=name)
 
     def resolve(self, name: str, config: ProviderConfig) -> ILLMProviderPort:
         """
@@ -65,19 +77,38 @@ class ProviderRegistry:
         if name not in self._factories:
             raise UnsupportedProviderError(name)
 
-        # Create cache key from config
-        cache_key = f"{name}:{config.api_key or 'default'}"
+        factory = self._factories[name]
+        self._logger.debug("Provider instantiated", provider=name)
+        return factory(config)
 
-        if cache_key not in self._instances:
-            factory = self._factories[name]
-            self._instances[cache_key] = factory(config)
-            self._logger.debug("Provider instantiated", provider=name)
+    def resolve_async(self, name: str, config: ProviderConfig) -> IAsyncLLMProviderPort:
+        """
+        Resolve an async provider by name with configuration.
 
-        return self._instances[cache_key]
+        Args:
+            name: Provider name
+            config: Provider configuration
+
+        Returns:
+            Async provider adapter instance
+
+        Raises:
+            UnsupportedProviderError: If provider is not registered
+        """
+        if name not in self._async_factories:
+            raise UnsupportedProviderError(name)
+
+        factory = self._async_factories[name]
+        self._logger.debug("Async provider instantiated", provider=name)
+        return factory(config)
 
     def has_provider(self, name: str) -> bool:
         """Check if a provider is registered."""
         return name in self._factories
+
+    def has_async_provider(self, name: str) -> bool:
+        """Check if an async provider is registered."""
+        return name in self._async_factories
 
     def list_providers(self) -> list[str]:
         """List all registered provider names."""
@@ -122,9 +153,69 @@ class ProviderRegistry:
         return result
 
     def clear(self) -> None:
-        """Clear all registrations and instances."""
+        """Clear all registrations."""
         self._factories.clear()
-        self._instances.clear()
+        self._async_factories.clear()
+
+
+def _register_defaults(registry: ProviderRegistry) -> None:
+    """Register all built-in provider adapters with lazy imports."""
+
+    def _openai_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers import OpenAIAdapter
+        return OpenAIAdapter(config)
+
+    def _anthropic_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers import AnthropicAdapter
+        return AnthropicAdapter(config)
+
+    def _ollama_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers import OllamaAdapter
+        return OllamaAdapter(config)
+
+    def _openrouter_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers import OpenRouterAdapter
+        return OpenRouterAdapter(config)
+
+    def _xai_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers import XAIAdapter
+        return XAIAdapter(config)
+
+    def _async_openai_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers import AsyncOpenAIAdapter
+        return AsyncOpenAIAdapter(config)
+
+    def _async_anthropic_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers import AsyncAnthropicAdapter
+        return AsyncAnthropicAdapter(config)
+
+    def _async_xai_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers import AsyncXAIAdapter
+        return AsyncXAIAdapter(config)
+
+    def _claude_code_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers.claude_code_adapter import (
+            ClaudeCodeAdapter,
+        )
+        return ClaudeCodeAdapter(config)
+
+    def _codex_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers.codex_adapter import CodexAdapter
+        return CodexAdapter(config)
+
+    # Sync providers
+    registry.register("openai", _openai_factory)
+    registry.register("anthropic", _anthropic_factory)
+    registry.register("ollama", _ollama_factory)
+    registry.register("openrouter", _openrouter_factory)
+    registry.register("xai", _xai_factory)
+    registry.register("claude-code", _claude_code_factory)
+    registry.register("codex", _codex_factory)
+
+    # Async providers
+    registry.register_async("openai", _async_openai_factory)
+    registry.register_async("anthropic", _async_anthropic_factory)
+    registry.register_async("xai", _async_xai_factory)
 
 
 # Singleton instance
@@ -136,6 +227,7 @@ def get_provider_registry() -> ProviderRegistry:
     global _provider_registry
     if _provider_registry is None:
         _provider_registry = ProviderRegistry()
+        _register_defaults(_provider_registry)
     return _provider_registry
 
 

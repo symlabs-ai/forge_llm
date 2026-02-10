@@ -43,10 +43,12 @@ agent = ChatAgent(provider="openai", model="gpt-4o-mini", tools=registry)
 
 ```python
 ChatAgent(
-    provider: str,              # "openai" | "anthropic" | "ollama" | "openrouter"
-    api_key: str | None,        # Auto-loaded from env if None
+    provider: str,              # "openai" | "anthropic" | "ollama" | "openrouter" | "xai" | "claude-code" | "codex"
+    api_key: str | None,        # Auto-loaded from env if None (not needed for CLI providers)
     model: str | None,          # Model name
     tools: ToolRegistry | None, # Optional tools
+    yolo_mode: bool = False,    # CLI only: autonomous execution (no permission prompts)
+    working_dir: str | None,    # CLI only: working directory for subprocess
 )
 ```
 
@@ -176,6 +178,9 @@ OPENROUTER_API_KEY=sk-or-...
 | `anthropic` | claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307 |
 | `ollama` | llama2, mistral, codellama (local) |
 | `openrouter` | provider/model format |
+| `xai` | grok-3-mini-fast, grok-3, grok-4 |
+| `claude-code` | sonnet, opus, haiku (CLI) |
+| `codex` | o3, o4-mini, codex-mini (CLI) |
 
 ## Patterns
 
@@ -201,6 +206,12 @@ def get_data(id: str) -> str:
     """Get data by ID."""
     return f"Data for {id}"
 agent = ChatAgent(provider="openai", model="gpt-4o-mini", tools=registry)
+```
+
+### CLI Coding Agent
+```python
+agent = ChatAgent(provider="claude-code", model="sonnet", yolo_mode=True, working_dir="/path/to/project")
+response = agent.chat("Fix the failing tests")
 ```
 
 ### Error Handling

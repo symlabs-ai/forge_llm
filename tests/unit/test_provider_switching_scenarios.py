@@ -111,11 +111,10 @@ class TestProviderRegistry:
         assert result is mock_adapter
         mock_factory.assert_called_once_with(config)
 
-    def test_registry_caches_instances(self):
-        """Registry should cache provider instances."""
+    def test_registry_creates_new_instance_per_resolve(self):
+        """Registry creates a new instance on each resolve (no cache)."""
         registry = ProviderRegistry()
-        mock_adapter = MagicMock()
-        mock_factory = MagicMock(return_value=mock_adapter)
+        mock_factory = MagicMock(side_effect=lambda c: MagicMock())
 
         registry.register("test_provider", mock_factory)
         config = ProviderConfig(provider="test_provider", api_key="test-key")
@@ -124,10 +123,9 @@ class TestProviderRegistry:
         result1 = registry.resolve("test_provider", config)
         result2 = registry.resolve("test_provider", config)
 
-        # Should be same instance
-        assert result1 is result2
-        # Factory should only be called once
-        mock_factory.assert_called_once()
+        # Should be different instances (agents manage their own cache)
+        assert result1 is not result2
+        assert mock_factory.call_count == 2
 
     def test_registry_different_keys_different_instances(self):
         """Different API keys should create different instances."""
