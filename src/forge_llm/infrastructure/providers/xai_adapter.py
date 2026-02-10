@@ -74,6 +74,19 @@ class XAIAdapter:
             raise ProviderNotConfiguredError("xai")
         return True
 
+    def list_models(self) -> list[str]:
+        """Fetch available models from the xAI API.
+
+        Uses the OpenAI-compatible GET /v1/models endpoint.
+
+        Returns:
+            Sorted list of model identifiers.
+        """
+        self.validate()
+        client = self._get_client()
+        response = client.models.list()
+        return sorted(m.id for m in response.data)
+
     def send(
         self,
         messages: list[dict[str, Any]],

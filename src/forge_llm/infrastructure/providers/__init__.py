@@ -13,6 +13,7 @@ Exports:
     - AsyncAnthropicAdapter: Async adapter for Anthropic API
     - AsyncXAIAdapter: Async adapter for xAI (Grok) API
     - ProviderRegistry: Registry for provider discovery
+    - ProviderMetadata: Static metadata for a provider
 """
 from forge_llm.infrastructure.providers.anthropic_adapter import AnthropicAdapter
 from forge_llm.infrastructure.providers.async_anthropic_adapter import (
@@ -26,6 +27,7 @@ from forge_llm.infrastructure.providers.ollama_adapter import OllamaAdapter
 from forge_llm.infrastructure.providers.openai_adapter import OpenAIAdapter
 from forge_llm.infrastructure.providers.openrouter_adapter import OpenRouterAdapter
 from forge_llm.infrastructure.providers.registry import (
+    ProviderMetadata,
     ProviderRegistry,
     get_provider_registry,
     reset_provider_registry,
@@ -33,6 +35,7 @@ from forge_llm.infrastructure.providers.registry import (
 from forge_llm.infrastructure.providers.xai_adapter import XAIAdapter
 
 __all__ = [
+    "ProviderMetadata",
     "ProviderRegistry",
     "get_provider_registry",
     "reset_provider_registry",

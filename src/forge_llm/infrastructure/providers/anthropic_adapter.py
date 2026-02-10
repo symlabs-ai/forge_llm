@@ -67,6 +67,17 @@ class AnthropicAdapter:
             raise ProviderNotConfiguredError("anthropic")
         return True
 
+    def list_models(self) -> list[str]:
+        """Fetch available models from the Anthropic API.
+
+        Returns:
+            Sorted list of model identifiers.
+        """
+        self.validate()
+        client = self._get_client()
+        response = client.models.list()
+        return sorted(m.id for m in response.data)
+
     def send(
         self,
         messages: list[dict[str, Any]],
