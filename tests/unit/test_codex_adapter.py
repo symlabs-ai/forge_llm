@@ -251,57 +251,51 @@ class TestCodexSend:
 class TestCodexStream:
     """Tests for Codex streaming."""
 
-    @patch("subprocess.Popen")
-    def test_stream_yields_chunks(self, mock_popen):
-        """stream() yields dictionaries with content from item.completed events."""
-        lines = [
-            json.dumps({"type": "thread.started", "thread_id": "t-1"}) + "\n",
-            json.dumps({"type": "turn.started"}) + "\n",
+    @patch("subprocess.run")
+    def test_stream_yields_chunk(self, mock_run):
+        """stream() yields a single chunk with the agent_message content."""
+        jsonl = "\n".join([
             json.dumps({
                 "type": "item.completed",
                 "item": {"id": "i0", "type": "reasoning", "text": "thinking"},
-            }) + "\n",
+            }),
             json.dumps({
                 "type": "item.completed",
                 "item": {"id": "i1", "type": "agent_message", "text": "Hello World"},
-            }) + "\n",
+            }),
             json.dumps({
                 "type": "turn.completed",
-                "usage": {"input_tokens": 100, "output_tokens": 10},
-            }) + "\n",
-        ]
-
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter(lines)
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
+                "usage": {"input_tokens": 100, "output_tokens": 10, "cached_input_tokens": 0},
+            }),
+        ])
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=jsonl,
+            stderr="",
+        )
 
         config = ProviderConfig(provider="codex", model="o3")
         adapter = CodexAdapter(config)
 
         chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
-        # Should get reasoning + agent_message chunks
-        assert len(chunks) == 2
-        assert chunks[0]["content"] == "thinking"
-        assert chunks[1]["content"] == "Hello World"
-        assert chunks[1]["finish_reason"] == "stop"
-        for chunk in chunks:
-            assert chunk["provider"] == "codex"
+        assert len(chunks) == 1
+        assert chunks[0]["content"] == "Hello World"
+        assert chunks[0]["finish_reason"] == "stop"
+        assert chunks[0]["provider"] == "codex"
 
-    @patch("subprocess.Popen")
-    def test_stream_skips_non_item_events(self, mock_popen):
-        """stream() skips events that are not item.completed."""
-        lines = [
-            json.dumps({"type": "thread.started", "thread_id": "t-1"}) + "\n",
-            json.dumps({"type": "turn.started"}) + "\n",
-            json.dumps({"type": "turn.completed", "usage": {}}) + "\n",
-        ]
-
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter(lines)
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
+    @patch("subprocess.run")
+    def test_stream_empty_content_yields_nothing(self, mock_run):
+        """stream() yields nothing when no agent_message is found."""
+        jsonl = "\n".join([
+            json.dumps({"type": "thread.started", "thread_id": "t-1"}),
+            json.dumps({"type": "turn.completed", "usage": {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}}),
+        ])
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=jsonl,
+            stderr="",
+        )
 
         config = ProviderConfig(provider="codex")
         adapter = CodexAdapter(config)
@@ -309,21 +303,6 @@ class TestCodexStream:
         chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
         assert len(chunks) == 0
-
-    @patch("subprocess.Popen")
-    def test_stream_uses_json_flag(self, mock_popen):
-        """stream() passes --json flag."""
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter([])
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
-
-        config = ProviderConfig(provider="codex")
-        adapter = CodexAdapter(config)
-        list(adapter.stream([{"role": "user", "content": "Hi"}]))
-
-        cmd = mock_popen.call_args[0][0]
-        assert "--json" in cmd
 
 
 class TestCodexProviderContract:

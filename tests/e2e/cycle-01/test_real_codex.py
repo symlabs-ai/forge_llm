@@ -24,7 +24,7 @@ class TestRealCodex:
 
         agent = ChatAgent(
             provider="codex",
-            model="o4-mini",
+            # No model specified — uses Codex CLI default
         )
 
         response = agent.chat("Say 'Hello ForgeLLM' and nothing else.")
@@ -44,7 +44,7 @@ class TestRealCodex:
 
         agent = ChatAgent(
             provider="codex",
-            model="o4-mini",
+            # No model specified — uses Codex CLI default
         )
 
         chunks = list(agent.stream_chat("Say 'Hello ForgeLLM' and nothing else."))
@@ -61,7 +61,7 @@ class TestRealCodex:
 
         agent = ChatAgent(
             provider="codex",
-            model="o4-mini",
+            # No model specified — uses Codex CLI default
         )
 
         response = agent.chat("What is 2+2? Reply with just the number.")

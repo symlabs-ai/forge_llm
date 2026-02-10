@@ -284,68 +284,71 @@ class TestClaudeCodeSend:
 class TestClaudeCodeStream:
     """Tests for Claude Code streaming."""
 
-    @patch("subprocess.Popen")
-    def test_stream_yields_chunks(self, mock_popen):
-        """stream() yields dictionaries with content."""
-        lines = [
-            json.dumps({"type": "assistant", "content": "Hello"}) + "\n",
-            json.dumps({"type": "assistant", "content": " World"}) + "\n",
-            json.dumps({"type": "result", "result": "Hello World"}) + "\n",
-        ]
-
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter(lines)
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
+    @patch("subprocess.run")
+    def test_stream_yields_chunks(self, mock_run):
+        """stream() yields a single chunk with full content."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "type": "result",
+                "result": "Hello World",
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }),
+            stderr="",
+        )
 
         config = ProviderConfig(provider="claude-code", model="sonnet")
         adapter = ClaudeCodeAdapter(config)
 
         chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
-        assert len(chunks) >= 2
-        assert any(c["content"] == "Hello" for c in chunks)
-        for chunk in chunks:
-            assert chunk["provider"] == "claude-code"
+        assert len(chunks) == 1
+        assert chunks[0]["content"] == "Hello World"
+        assert chunks[0]["provider"] == "claude-code"
+        assert chunks[0]["finish_reason"] == "stop"
 
-    @patch("subprocess.Popen")
-    def test_stream_uses_stream_json_format(self, mock_popen):
-        """stream() uses --output-format stream-json."""
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter([])
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
+    @patch("subprocess.run")
+    def test_stream_uses_json_format(self, mock_run):
+        """stream() uses --output-format json (not stream-json)."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "type": "result",
+                "result": "ok",
+                "usage": {},
+            }),
+            stderr="",
+        )
 
         config = ProviderConfig(provider="claude-code")
         adapter = ClaudeCodeAdapter(config)
         list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
-        cmd = mock_popen.call_args[0][0]
+        cmd = mock_run.call_args[0][0]
         assert "--output-format" in cmd
         fmt_idx = cmd.index("--output-format")
-        assert cmd[fmt_idx + 1] == "stream-json"
+        assert cmd[fmt_idx + 1] == "json"
+        assert "--verbose" not in cmd
 
-    @patch("subprocess.Popen")
-    def test_stream_skips_empty_lines(self, mock_popen):
-        """stream() skips empty lines in output."""
-        lines = [
-            "\n",
-            json.dumps({"type": "assistant", "content": "Hello"}) + "\n",
-            "\n",
-        ]
-
-        mock_proc = MagicMock()
-        mock_proc.stdout = iter(lines)
-        mock_proc.wait.return_value = 0
-        mock_popen.return_value = mock_proc
+    @patch("subprocess.run")
+    def test_stream_empty_content_yields_nothing(self, mock_run):
+        """stream() yields nothing when content is empty."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "type": "result",
+                "result": "",
+                "usage": {},
+            }),
+            stderr="",
+        )
 
         config = ProviderConfig(provider="claude-code")
         adapter = ClaudeCodeAdapter(config)
 
         chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
 
-        assert len(chunks) == 1
-        assert chunks[0]["content"] == "Hello"
+        assert len(chunks) == 0
 
 
 class TestClaudeCodeProviderContract:

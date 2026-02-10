@@ -66,10 +66,9 @@ class ClaudeCodeAdapter:
             )
         return True
 
-    def _build_command(self, prompt: str, model: str | None, stream: bool = False) -> list[str]:
-        """Build the CLI command."""
-        output_format = "stream-json" if stream else "json"
-        cmd = [self._cli_path, "-p", prompt, "--output-format", output_format]
+    def _build_command(self, prompt: str, model: str | None) -> list[str]:
+        """Build the CLI command. Always uses JSON output format."""
+        cmd = [self._cli_path, "-p", prompt, "--output-format", "json"]
         if model:
             cmd.extend(["--model", model])
         if self._config.yolo_mode:
@@ -152,66 +151,26 @@ class ClaudeCodeAdapter:
         config: dict[str, Any] | None = None,
     ) -> Generator[dict[str, Any], None, None]:
         """
-        Stream response from Claude Code CLI.
+        Stream response from Claude Code CLI using JSON output.
+
+        Uses --output-format json (faster than stream-json) and yields
+        the result as a single chunk when the process completes.
 
         Args:
             messages: List of message dicts
             config: Optional request-specific configuration
 
         Yields:
-            Response chunks with partial content
+            Response chunk with content
         """
-        prompt = self._extract_prompt(messages)
-        model = (config or {}).get("model") or self._config.model
-
-        self._logger.debug(
-            "Starting stream from Claude Code CLI",
-            model=model,
-            prompt_length=len(prompt),
-        )
-
-        cmd = self._build_command(prompt, model, stream=True)
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=self._config.working_dir,
-            )
-        except FileNotFoundError as e:
-            raise ProviderNotConfiguredError(
-                "claude-code", "claude CLI not found"
-            ) from e
-
-        try:
-            for line in proc.stdout:  # type: ignore[union-attr]
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                event_type = event.get("type", "")
-
-                if event_type == "assistant" and "content" in event:
-                    yield {
-                        "content": event["content"],
-                        "provider": "claude-code",
-                    }
-                elif event_type == "result":
-                    content = event.get("result", "")
-                    if content:
-                        yield {
-                            "content": content,
-                            "provider": "claude-code",
-                            "finish_reason": "stop",
-                        }
-        finally:
-            proc.wait()
+        # Reuse send() logic — JSON format is faster and simpler
+        result = self.send(messages, config)
+        if result.get("content"):
+            yield {
+                "content": result["content"],
+                "provider": "claude-code",
+                "finish_reason": "stop",
+            }
 
     def _extract_prompt(self, messages: list[dict[str, Any]]) -> str:
         """Extract the prompt from the last user message."""

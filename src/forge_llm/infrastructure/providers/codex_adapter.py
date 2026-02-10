@@ -170,65 +170,23 @@ class CodexAdapter:
         """
         Stream response from Codex CLI.
 
+        Codex only supports JSONL output (--json). Reuses send() to parse
+        the full JSONL and yields the result as a single chunk.
+
         Args:
             messages: List of message dicts
             config: Optional request-specific configuration
 
         Yields:
-            Response chunks from JSONL events
+            Response chunk with content
         """
-        prompt = self._extract_prompt(messages)
-        model = (config or {}).get("model") or self._config.model
-
-        self._logger.debug(
-            "Starting stream from Codex CLI",
-            model=model,
-            prompt_length=len(prompt),
-        )
-
-        cmd = self._build_command(prompt, model)
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=self._config.working_dir,
-            )
-        except FileNotFoundError as e:
-            raise ProviderNotConfiguredError(
-                "codex", "codex CLI not found"
-            ) from e
-
-        try:
-            for line in proc.stdout:  # type: ignore[union-attr]
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                event_type = event.get("type", "")
-
-                if event_type == "item.completed":
-                    item = event.get("item", {})
-                    text = item.get("text", "")
-                    if text and item.get("type") == "agent_message":
-                        yield {
-                            "content": text,
-                            "provider": "codex",
-                            "finish_reason": "stop",
-                        }
-                    elif text and item.get("type") == "reasoning":
-                        yield {
-                            "content": text,
-                            "provider": "codex",
-                        }
-        finally:
-            proc.wait()
+        result = self.send(messages, config)
+        if result.get("content"):
+            yield {
+                "content": result["content"],
+                "provider": "codex",
+                "finish_reason": "stop",
+            }
 
     def _extract_prompt(self, messages: list[dict[str, Any]]) -> str:
         """Extract the prompt from the last user message."""
