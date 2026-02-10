@@ -10,6 +10,7 @@ import pytest
 from forge_llm.domain import UnsupportedProviderError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.providers.registry import (
+    ProviderMetadata,
     ProviderRegistry,
     get_provider_registry,
     reset_provider_registry,
@@ -95,3 +96,74 @@ class TestProviderRegistry:
         assert registry.has_provider("custom_test") is False
         # Defaults are re-registered
         assert registry.has_provider("openai") is True
+
+    def test_list_available_models_accepts_dict_config(self):
+        """list_available_models converts dict config to ProviderConfig."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.return_value = ["model-a", "model-b"]
+
+        def mock_factory(config):
+            assert isinstance(config, ProviderConfig)
+            return mock_provider
+
+        registry.register(
+            "test-provider",
+            mock_factory,
+            metadata=ProviderMetadata(known_models=["fallback"]),
+        )
+
+        result = registry.list_available_models(
+            "test-provider", {"api_key": "sk-test"},
+        )
+
+        assert result == ["model-a", "model-b"]
+        mock_provider.list_models.assert_called_once()
+
+    def test_list_available_models_dict_without_provider_key(self):
+        """dict config without 'provider' key gets it from name arg."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.return_value = ["m1"]
+
+        def mock_factory(config):
+            assert config.provider == "mytest"
+            return mock_provider
+
+        registry.register("mytest", mock_factory)
+
+        result = registry.list_available_models("mytest", {"api_key": "key"})
+        assert result == ["m1"]
+
+    def test_list_available_models_with_provider_config(self):
+        """list_available_models still works with ProviderConfig directly."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.return_value = ["m1"]
+
+        registry.register("test", lambda config: mock_provider)
+
+        config = ProviderConfig(provider="test", api_key="sk-test")
+        result = registry.list_available_models("test", config)
+        assert result == ["m1"]
+
+    def test_list_available_models_fallback_on_failure(self):
+        """Falls back to known_models when list_models raises."""
+        registry = ProviderRegistry()
+
+        mock_provider = MagicMock()
+        mock_provider.list_models.side_effect = RuntimeError("API error")
+
+        registry.register(
+            "test",
+            lambda config: mock_provider,
+            metadata=ProviderMetadata(known_models=["fallback-model"]),
+        )
+
+        result = registry.list_available_models(
+            "test", {"api_key": "sk-test"},
+        )
+        assert result == ["fallback-model"]

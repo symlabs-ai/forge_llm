@@ -193,7 +193,9 @@ class ProviderRegistry:
             result[name] = self.get_provider_info(name)
         return result
 
-    def list_available_models(self, name: str, config: ProviderConfig) -> list[str]:
+    def list_available_models(
+        self, name: str, config: ProviderConfig | dict,
+    ) -> list[str]:
         """
         Fetch available models dynamically from a provider's API.
 
@@ -203,7 +205,8 @@ class ProviderRegistry:
 
         Args:
             name: Provider name
-            config: Provider configuration with api_key/base_url
+            config: Provider configuration with api_key/base_url.
+                    Accepts ProviderConfig or a dict (auto-converted).
 
         Returns:
             List of model identifiers
@@ -213,6 +216,11 @@ class ProviderRegistry:
         """
         if name not in self._factories:
             raise UnsupportedProviderError(name)
+
+        if isinstance(config, dict):
+            if "provider" not in config:
+                config["provider"] = name
+            config = ProviderConfig(**config)
 
         provider = self._factories[name](config)
 
@@ -248,37 +256,44 @@ def _register_defaults(registry: ProviderRegistry) -> None:
 
     _openai_meta = ProviderMetadata(
         known_models=[
-            "gpt-4",
-            "gpt-4-turbo",
+            "gpt-5",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
             "gpt-4o",
             "gpt-4o-mini",
+            "o3",
+            "o3-mini",
+            "o4-mini",
+            "gpt-4",
+            "gpt-4-turbo",
             "gpt-3.5-turbo",
-            "o1-preview",
-            "o1-mini",
         ],
         default_base_url="https://api.openai.com/v1",
     )
 
     _anthropic_meta = ProviderMetadata(
         known_models=[
+            "claude-opus-4-6",
+            "claude-sonnet-4-5-20250929",
+            "claude-haiku-4-5-20251001",
             "claude-3-5-sonnet-20241022",
             "claude-3-5-haiku-20241022",
             "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307",
         ],
         default_base_url="https://api.anthropic.com",
     )
 
     _xai_meta = ProviderMetadata(
         known_models=[
-            "grok-4.1-fast",
+            "grok-4-1-fast-reasoning",
+            "grok-4-1-fast-non-reasoning",
             "grok-4-fast",
             "grok-4",
-            "grok-3-mini-fast",
             "grok-3-fast",
-            "grok-3-mini",
             "grok-3",
+            "grok-3-mini-fast",
+            "grok-3-mini",
         ],
         default_base_url="https://api.x.ai/v1",
     )
@@ -307,22 +322,21 @@ def _register_defaults(registry: ProviderRegistry) -> None:
 
     _openrouter_meta = ProviderMetadata(
         known_models=[
-            "openai/gpt-4",
-            "openai/gpt-4-turbo",
+            "openai/gpt-5",
+            "openai/gpt-4.1",
             "openai/gpt-4o",
-            "openai/gpt-4o-mini",
-            "openai/gpt-3.5-turbo",
-            "anthropic/claude-3-opus",
-            "anthropic/claude-3-sonnet",
-            "anthropic/claude-3-haiku",
+            "openai/o3",
+            "openai/o4-mini",
+            "anthropic/claude-opus-4-6",
+            "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-haiku-4-5",
             "anthropic/claude-3.5-sonnet",
-            "google/gemini-pro",
-            "google/gemini-pro-1.5",
-            "meta-llama/llama-3-70b-instruct",
-            "meta-llama/llama-3-8b-instruct",
+            "google/gemini-2.5-pro",
+            "google/gemini-2.5-flash",
+            "meta-llama/llama-4-maverick",
+            "meta-llama/llama-4-scout",
+            "x-ai/grok-4",
             "mistralai/mistral-large",
-            "mistralai/mistral-medium",
-            "mistralai/mixtral-8x7b-instruct",
         ],
         default_base_url="https://openrouter.ai/api/v1",
     )
