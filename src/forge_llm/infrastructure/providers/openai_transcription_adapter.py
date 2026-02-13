@@ -9,12 +9,12 @@ import io
 import os
 from typing import TYPE_CHECKING
 
-from forge_llm.infrastructure.logging import LogService
+from forge_llm.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from openai import OpenAI
 
-_log = LogService.get_logger("openai_transcription")
+_log = get_logger("openai_transcription")
 
 
 class OpenAITranscriptionAdapter:
