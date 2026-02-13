@@ -23,7 +23,11 @@ from forge_llm.application.session import (
     SummarizeCompactor,
     TruncateCompactor,
 )
+from forge_llm.application.ports.transcription_port import ITranscriptionPort
 from forge_llm.application.tools import ToolRegistry
+from forge_llm.infrastructure.providers.openai_transcription_adapter import (
+    OpenAITranscriptionAdapter,
+)
 from forge_llm.domain.entities import (
     ChatChunk,
     ChatConfig,
@@ -67,4 +71,7 @@ __all__ = [
     "TruncateCompactor",
     "SummarizeCompactor",
     "ToolRegistry",
+    # Transcription
+    "ITranscriptionPort",
+    "OpenAITranscriptionAdapter",
 ]

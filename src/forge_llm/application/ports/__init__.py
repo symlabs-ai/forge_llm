@@ -9,9 +9,11 @@ Exports:
 from forge_llm.application.ports.async_provider_port import IAsyncLLMProviderPort
 from forge_llm.application.ports.provider_port import ILLMProviderPort
 from forge_llm.application.ports.tool_port import IToolPort
+from forge_llm.application.ports.transcription_port import ITranscriptionPort
 
 __all__ = [
     "IAsyncLLMProviderPort",
     "ILLMProviderPort",
     "IToolPort",
+    "ITranscriptionPort",
 ]

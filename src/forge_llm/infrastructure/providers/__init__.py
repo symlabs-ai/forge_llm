@@ -25,6 +25,9 @@ from forge_llm.infrastructure.providers.claude_code_adapter import ClaudeCodeAda
 from forge_llm.infrastructure.providers.codex_adapter import CodexAdapter
 from forge_llm.infrastructure.providers.ollama_adapter import OllamaAdapter
 from forge_llm.infrastructure.providers.openai_adapter import OpenAIAdapter
+from forge_llm.infrastructure.providers.openai_transcription_adapter import (
+    OpenAITranscriptionAdapter,
+)
 from forge_llm.infrastructure.providers.openrouter_adapter import OpenRouterAdapter
 from forge_llm.infrastructure.providers.registry import (
     ProviderMetadata,
@@ -49,4 +52,5 @@ __all__ = [
     "AsyncOpenAIAdapter",
     "AsyncAnthropicAdapter",
     "AsyncXAIAdapter",
+    "OpenAITranscriptionAdapter",
 ]
