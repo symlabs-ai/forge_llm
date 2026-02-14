@@ -1,7 +1,7 @@
 """
 OpenAIAdapter - Adapter for OpenAI API.
 
-Implements ILLMProviderPort for OpenAI chat completions.
+Implements ILLMProviderPort for OpenAI chat completions and responses APIs.
 """
 from __future__ import annotations
 
@@ -13,6 +13,14 @@ from forge_llm.domain import (
 )
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.logging import LogService
+from forge_llm.infrastructure.providers._openai_responses import (
+    RESPONSES_ONLY_MODELS,
+    convert_messages_for_responses,
+    convert_tools_for_responses,
+    get_extra_params,
+    needs_responses_api,
+    parse_response_output,
+)
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -23,6 +31,7 @@ class OpenAIAdapter:
     Adapter for OpenAI chat completions API.
 
     Implements ILLMProviderPort interface for OpenAI.
+    Routes to Responses API for models that require it.
 
     Usage:
         config = ProviderConfig(provider="openai", api_key="sk-...", model="gpt-4")
@@ -108,6 +117,8 @@ class OpenAIAdapter:
         """
         Send messages to OpenAI and get response.
 
+        Routes to Responses API or Completions API based on model.
+
         Args:
             messages: List of message dicts with role and content
             config: Optional request-specific configuration
@@ -116,21 +127,57 @@ class OpenAIAdapter:
             Response dict with content, role, model, and usage
         """
         self.validate()
+
+        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        if needs_responses_api(model):
+            return self._send_via_responses(messages, config)
+        return self._send_via_completions(messages, config)
+
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> Generator[dict[str, Any], None, None]:
+        """
+        Send messages and stream response chunks.
+
+        Routes to Responses API or Completions API based on model.
+
+        Args:
+            messages: List of message dicts
+            config: Optional request-specific configuration (may include 'tools')
+
+        Yields:
+            Response chunks with partial content or tool_calls
+        """
+        self.validate()
+
+        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        if needs_responses_api(model):
+            yield from self._stream_via_responses(messages, config)
+        else:
+            yield from self._stream_via_completions(messages, config)
+
+    # ── Completions path (existing logic) ──────────────────────────────
+
+    def _send_via_completions(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         client = self._get_client()
 
-        # Merge request config with adapter config
         model = (config or {}).get("model") or self._config.model or "gpt-4"
         timeout = (config or {}).get("timeout") or self._config.timeout
         tools = (config or {}).get("tools")
 
         self._logger.debug(
-            "Sending request to OpenAI",
+            "Sending request to OpenAI (completions)",
             model=model,
             message_count=len(messages),
             has_tools=tools is not None,
         )
 
-        # Convert messages for OpenAI (handles multimodal content)
         converted_messages = self._convert_messages_for_openai(messages)
 
         request_params: dict[str, Any] = {
@@ -174,25 +221,11 @@ class OpenAIAdapter:
 
         return result
 
-    def stream(
+    def _stream_via_completions(
         self,
         messages: list[dict[str, Any]],
         config: dict[str, Any] | None = None,
     ) -> Generator[dict[str, Any], None, None]:
-        """
-        Send messages and stream response chunks.
-
-        Supports tool calls - when tools are provided in config, tool call
-        chunks are yielded with 'tool_calls' key for accumulation.
-
-        Args:
-            messages: List of message dicts
-            config: Optional request-specific configuration (may include 'tools')
-
-        Yields:
-            Response chunks with partial content or tool_calls
-        """
-        self.validate()
         client = self._get_client()
 
         model = (config or {}).get("model") or self._config.model or "gpt-4"
@@ -200,16 +233,14 @@ class OpenAIAdapter:
         tools = (config or {}).get("tools")
 
         self._logger.debug(
-            "Starting stream from OpenAI",
+            "Starting stream from OpenAI (completions)",
             model=model,
             message_count=len(messages),
             has_tools=tools is not None,
         )
 
-        # Convert messages for OpenAI (handles multimodal content)
         converted_messages = self._convert_messages_for_openai(messages)
 
-        # Build request params
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -221,7 +252,6 @@ class OpenAIAdapter:
 
         response = client.chat.completions.create(**request_params)
 
-        # Track tool calls being assembled
         tool_calls_accumulator: dict[int, dict[str, Any]] = {}
 
         for chunk in response:
@@ -231,14 +261,12 @@ class OpenAIAdapter:
             delta = chunk.choices[0].delta
             finish_reason = chunk.choices[0].finish_reason
 
-            # Handle content chunks
             if delta.content:
                 yield {
                     "content": delta.content,
                     "provider": "openai",
                 }
 
-            # Handle tool call chunks
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     idx = tc.index
@@ -259,7 +287,6 @@ class OpenAIAdapter:
                                 tc.function.arguments
                             )
 
-            # When finish_reason is present, yield the final chunk with any accumulated tools
             if finish_reason:
                 payload = {
                     "content": "",
@@ -270,6 +297,116 @@ class OpenAIAdapter:
                     payload["tool_calls"] = list(tool_calls_accumulator.values())
 
                 yield payload
+
+    # ── Responses path (new) ───────────────────────────────────────────
+
+    def _send_via_responses(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        client = self._get_client()
+
+        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        tools = (config or {}).get("tools")
+
+        self._logger.debug(
+            "Sending request to OpenAI (responses)",
+            model=model,
+            message_count=len(messages),
+            has_tools=tools is not None,
+        )
+
+        instructions, input_items = convert_messages_for_responses(messages)
+
+        request_params: dict[str, Any] = {
+            "model": model,
+            "input": input_items,
+        }
+        if instructions:
+            request_params["instructions"] = instructions
+        if tools:
+            request_params["tools"] = convert_tools_for_responses(tools)
+
+        extra = get_extra_params(self._config.extra, self._logger)
+        request_params.update(extra)
+
+        response = client.responses.create(**request_params)
+        return parse_response_output(response)
+
+    def _stream_via_responses(
+        self,
+        messages: list[dict[str, Any]],
+        config: dict[str, Any] | None = None,
+    ) -> Generator[dict[str, Any], None, None]:
+        client = self._get_client()
+
+        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        tools = (config or {}).get("tools")
+
+        self._logger.debug(
+            "Starting stream from OpenAI (responses)",
+            model=model,
+            message_count=len(messages),
+            has_tools=tools is not None,
+        )
+
+        instructions, input_items = convert_messages_for_responses(messages)
+
+        request_params: dict[str, Any] = {
+            "model": model,
+            "input": input_items,
+            "stream": True,
+        }
+        if instructions:
+            request_params["instructions"] = instructions
+        if tools:
+            request_params["tools"] = convert_tools_for_responses(tools)
+
+        extra = get_extra_params(self._config.extra, self._logger)
+        request_params.update(extra)
+
+        stream = client.responses.create(**request_params)
+
+        tool_calls_accumulator: dict[str, dict[str, Any]] = {}
+
+        for event in stream:
+            event_type = event.type
+
+            if event_type == "response.output_text.delta":
+                yield {
+                    "content": event.delta,
+                    "provider": "openai",
+                }
+
+            elif event_type == "response.function_call_arguments.delta":
+                call_id = event.item_id
+                if call_id in tool_calls_accumulator:
+                    tool_calls_accumulator[call_id]["function"]["arguments"] += event.delta
+
+            elif event_type == "response.output_item.added":
+                item = event.item
+                if item.type == "function_call":
+                    tool_calls_accumulator[item.id] = {
+                        "id": item.call_id,
+                        "type": "function",
+                        "function": {
+                            "name": item.name,
+                            "arguments": "",
+                        },
+                    }
+
+            elif event_type == "response.completed":
+                payload: dict[str, Any] = {
+                    "content": "",
+                    "provider": "openai",
+                    "finish_reason": "tool_calls" if tool_calls_accumulator else "stop",
+                }
+                if tool_calls_accumulator:
+                    payload["tool_calls"] = list(tool_calls_accumulator.values())
+                yield payload
+
+    # ── Shared helpers ─────────────────────────────────────────────────
 
     def _convert_messages_for_openai(
         self, messages: list[dict[str, Any]]

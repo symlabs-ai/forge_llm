@@ -4,7 +4,8 @@ ProviderConfig - Configuration entity for LLM providers.
 This entity holds all configuration needed to connect to an LLM provider.
 It is immutable (frozen) to ensure configuration consistency.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class ProviderConfig:
     max_retries: int = 3
     yolo_mode: bool = False
     working_dir: str | None = None
+    extra: dict[str, Any] | None = field(default=None)
 
     # Providers that don't require API keys
     LOCAL_PROVIDERS = frozenset({"ollama", "claude-code", "codex"})

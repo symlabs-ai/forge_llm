@@ -9,7 +9,7 @@ packages = [{include = "forge_llm", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 # forge-base = "^0.2.0"  # TODO: Descomentar quando disponivel
-openai = "^1.0.0"
+openai = ">=1.75.0"
 anthropic = "^0.30.0"
 pydantic = "^2.0.0"
 httpx = "^0.27.0"
