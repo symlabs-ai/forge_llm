@@ -8,27 +8,27 @@
 
 Unified LLM client with provider portability. Write once, run on any provider.
 
-## Para Agentes de Código de IA
+## For AI Code Agents
 
-**Primeira vez usando ForgeLLM?** Acesse documentação completa programaticamente:
+**First time using ForgeLLM?** Access full documentation programmatically:
 
 ```python
 from forge_llm.dev import get_agent_quickstart
 
-guide = get_agent_quickstart()  # Documentação completa de API
+guide = get_agent_quickstart()  # Full API documentation
 print(guide)
 ```
 
-**Referência rápida:**
+**Quick reference:**
 ```python
 from forge_llm import ChatAgent
 
 agent = ChatAgent(provider="openai", model="gpt-4o-mini")
-response = agent.chat("Sua pergunta")
+response = agent.chat("Your question")
 print(response.content)
 ```
 
-Documentação completa: [docs/product/agents/](./docs/product/agents/)
+Full documentation: [docs/product/agents/](./docs/product/agents/)
 
 ## Features
 

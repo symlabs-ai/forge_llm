@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Error fallback scenarios
   - Provider switching scenarios
   - Session persistence scenarios
-- "Para Agentes de Código de IA" section in README.md for discovery
+- "For AI Code Agents" section in README.md for discovery
 
 ### Fixed
 - Anthropic adapter system prompt handling
