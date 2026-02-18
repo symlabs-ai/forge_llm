@@ -1,7 +1,9 @@
 """
-AsyncOpenAIAdapter - Async adapter for OpenAI API.
+AsyncSymRouterAdapter - Async adapter for Sym Router Gateway.
 
-Implements async ILLMProviderPort for OpenAI chat completions and responses APIs.
+Implements async ILLMProviderPort for routing LLM calls via Sym Router Gateway.
+Sym Router provides cost governance, automatic fallback between providers,
+and unified tracking. Its API is OpenAI-compatible (/v1/chat/completions).
 """
 from __future__ import annotations
 
@@ -11,55 +13,36 @@ from typing import TYPE_CHECKING, Any
 from forge_llm.domain import ProviderNotConfiguredError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.logging import LogService
-from forge_llm.infrastructure.providers._openai_responses import (
-    RESPONSES_ONLY_MODELS,
-    convert_messages_for_responses,
-    convert_tools_for_responses,
-    get_extra_params,
-    needs_responses_api,
-    parse_response_output,
-)
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
 
+SYMROUTER_DEFAULT_BASE_URL = "http://localhost:8000"
 
-class AsyncOpenAIAdapter:
+
+class AsyncSymRouterAdapter:
     """
-    Async adapter for OpenAI chat completions API.
+    Async adapter for Sym Router Gateway chat completions and image generation.
 
-    Routes to Responses API for models that require it.
+    Uses the OpenAI SDK with Sym Router's base URL for async operations.
+    Provides cost governance, automatic fallback, and unified tracking.
 
     Usage:
-        config = ProviderConfig(provider="openai", api_key="sk-...", model="gpt-4")
-        adapter = AsyncOpenAIAdapter(config)
+        config = ProviderConfig(
+            provider="symrouter",
+            api_key="sk-sym_...",
+            base_url="http://gateway:8010",
+            model="gpt-4o-mini",
+            extra={
+                "end_customer_id": "user-123",
+                "workflow_id": "summarize",
+                "tags": ["production", "v2"],
+            }
+        )
+        adapter = AsyncSymRouterAdapter(config)
 
         response = await adapter.send([{"role": "user", "content": "Hello"}])
     """
-
-    SUPPORTED_MODELS = [
-        "gpt-4",
-        "gpt-4-turbo",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-3.5-turbo",
-        "o1-preview",
-        "o1-mini",
-    ]
-
-    # Prefixes for non-chat models (TTS, embeddings, moderation, etc.)
-    _NON_CHAT_PREFIXES = (
-        "tts-",
-        "whisper-",
-        "dall-e-",
-        "text-embedding-",
-        "text-moderation-",
-        "babbage-",
-        "davinci-",
-        "canary-",
-        "ft:",
-        "omni-moderation-",
-    )
 
     def __init__(self, config: ProviderConfig) -> None:
         self._config = config
@@ -69,7 +52,7 @@ class AsyncOpenAIAdapter:
     @property
     def name(self) -> str:
         """Provider name."""
-        return "openai"
+        return "symrouter"
 
     @property
     def config(self) -> ProviderConfig:
@@ -87,24 +70,8 @@ class AsyncOpenAIAdapter:
             ProviderNotConfiguredError: If API key is missing
         """
         if not self._config.is_configured:
-            raise ProviderNotConfiguredError("openai")
+            raise ProviderNotConfiguredError("symrouter")
         return True
-
-    async def list_models(self) -> list[str]:
-        """Fetch available chat models from the OpenAI API asynchronously.
-
-        Filters out non-chat models (TTS, whisper, embedding, moderation, etc.).
-
-        Returns:
-            Sorted list of chat-capable model identifiers.
-        """
-        self.validate()
-        client = self._get_client()
-        response = await client.models.list()
-        return sorted(
-            m.id for m in response.data
-            if not m.id.startswith(self._NON_CHAT_PREFIXES)
-        )
 
     async def send(
         self,
@@ -112,71 +79,33 @@ class AsyncOpenAIAdapter:
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Send messages to OpenAI and get response asynchronously.
+        Send messages to Sym Router Gateway and get response asynchronously.
 
-        Routes to Responses API or Completions API based on model.
+        Injects symrouter_metadata from config.extra into the request body
+        and extracts gateway metadata (cost, request_id, fallback) from response.
 
         Args:
             messages: List of message dicts with role and content
             config: Optional request-specific configuration
 
         Returns:
-            Response dict with content, role, model, and usage
+            Response dict with content, role, model, usage, and symrouter metadata
         """
         self.validate()
-
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
-        if needs_responses_api(model):
-            return await self._send_via_responses(messages, config)
-        return await self._send_via_completions(messages, config)
-
-    async def stream(
-        self,
-        messages: list[dict[str, Any]],
-        config: dict[str, Any] | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        """
-        Send messages and stream response chunks asynchronously.
-
-        Routes to Responses API or Completions API based on model.
-
-        Args:
-            messages: List of message dicts
-            config: Optional request-specific configuration (may include 'tools')
-
-        Yields:
-            Response chunks with partial content or tool_calls
-        """
-        self.validate()
-
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
-        if needs_responses_api(model):
-            async for chunk in self._stream_via_responses(messages, config):
-                yield chunk
-        else:
-            async for chunk in self._stream_via_completions(messages, config):
-                yield chunk
-
-    # ── Completions path (existing logic) ──────────────────────────────
-
-    async def _send_via_completions(
-        self,
-        messages: list[dict[str, Any]],
-        config: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
         client = self._get_client()
 
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        model = (config or {}).get("model") or self._config.model
         timeout = (config or {}).get("timeout") or self._config.timeout
         tools = (config or {}).get("tools")
 
         self._logger.debug(
-            "Sending async request to OpenAI (completions)",
+            "Sending async request to Sym Router Gateway",
             model=model,
             message_count=len(messages),
             has_tools=tools is not None,
         )
 
+        # Convert messages for OpenAI format (handles multimodal content)
         converted_messages = self._convert_messages_for_openai(messages)
 
         request_params: dict[str, Any] = {
@@ -187,6 +116,11 @@ class AsyncOpenAIAdapter:
         if tools:
             request_params["tools"] = tools
 
+        # Inject symrouter_metadata via extra_body
+        metadata = self._build_symrouter_metadata()
+        if metadata:
+            request_params["extra_body"] = {"symrouter_metadata": metadata}
+
         response = await client.chat.completions.create(**request_params)
 
         choice = response.choices[0]
@@ -196,13 +130,18 @@ class AsyncOpenAIAdapter:
             "content": choice.message.content,
             "role": choice.message.role,
             "model": response.model,
-            "provider": "openai",
+            "provider": "symrouter",
             "usage": {
                 "prompt_tokens": usage.prompt_tokens if usage else 0,
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "total_tokens": usage.total_tokens if usage else 0,
             },
         }
+
+        # Extract gateway metadata
+        sr_meta = self._extract_symrouter_response(response)
+        if sr_meta:
+            result["symrouter"] = sr_meta
 
         if choice.message.tool_calls:
             result["tool_calls"] = [
@@ -220,24 +159,38 @@ class AsyncOpenAIAdapter:
 
         return result
 
-    async def _stream_via_completions(
+    async def stream(
         self,
         messages: list[dict[str, Any]],
         config: dict[str, Any] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Send messages and stream response chunks via Sym Router Gateway asynchronously.
+
+        The gateway returns SSE in OpenAI standard format.
+
+        Args:
+            messages: List of message dicts
+            config: Optional request-specific configuration (may include 'tools')
+
+        Yields:
+            Response chunks with partial content or tool_calls
+        """
+        self.validate()
         client = self._get_client()
 
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
+        model = (config or {}).get("model") or self._config.model
         timeout = (config or {}).get("timeout") or self._config.timeout
         tools = (config or {}).get("tools")
 
         self._logger.debug(
-            "Starting async stream from OpenAI (completions)",
+            "Starting async stream from Sym Router Gateway",
             model=model,
             message_count=len(messages),
             has_tools=tools is not None,
         )
 
+        # Convert messages for OpenAI format (handles multimodal content)
         converted_messages = self._convert_messages_for_openai(messages)
 
         request_params: dict[str, Any] = {
@@ -249,8 +202,14 @@ class AsyncOpenAIAdapter:
         if tools:
             request_params["tools"] = tools
 
+        # Inject symrouter_metadata via extra_body
+        metadata = self._build_symrouter_metadata()
+        if metadata:
+            request_params["extra_body"] = {"symrouter_metadata": metadata}
+
         response = await client.chat.completions.create(**request_params)
 
+        # Track tool calls being assembled
         tool_calls_accumulator: dict[int, dict[str, Any]] = {}
 
         async for chunk in response:
@@ -260,12 +219,14 @@ class AsyncOpenAIAdapter:
             delta = chunk.choices[0].delta
             finish_reason = chunk.choices[0].finish_reason
 
+            # Handle content chunks
             if delta.content:
                 yield {
                     "content": delta.content,
-                    "provider": "openai",
+                    "provider": "symrouter",
                 }
 
+            # Handle tool call chunks
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     idx = tc.index
@@ -286,129 +247,20 @@ class AsyncOpenAIAdapter:
                                 tc.function.arguments
                             )
 
+            # When finish_reason is 'tool_calls', yield the accumulated tool calls
             if finish_reason == "tool_calls" and tool_calls_accumulator:
                 yield {
                     "content": "",
-                    "provider": "openai",
+                    "provider": "symrouter",
                     "tool_calls": list(tool_calls_accumulator.values()),
                     "finish_reason": "tool_calls",
                 }
             elif finish_reason:
                 yield {
                     "content": "",
-                    "provider": "openai",
+                    "provider": "symrouter",
                     "finish_reason": finish_reason,
                 }
-
-    # ── Responses path (new) ───────────────────────────────────────────
-
-    async def _send_via_responses(
-        self,
-        messages: list[dict[str, Any]],
-        config: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        client = self._get_client()
-
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
-        tools = (config or {}).get("tools")
-
-        self._logger.debug(
-            "Sending async request to OpenAI (responses)",
-            model=model,
-            message_count=len(messages),
-            has_tools=tools is not None,
-        )
-
-        instructions, input_items = convert_messages_for_responses(messages)
-
-        request_params: dict[str, Any] = {
-            "model": model,
-            "input": input_items,
-        }
-        if instructions:
-            request_params["instructions"] = instructions
-        if tools:
-            request_params["tools"] = convert_tools_for_responses(tools)
-
-        extra = get_extra_params(self._config.extra, self._logger)
-        request_params.update(extra)
-
-        response = await client.responses.create(**request_params)
-        return parse_response_output(response)
-
-    async def _stream_via_responses(
-        self,
-        messages: list[dict[str, Any]],
-        config: dict[str, Any] | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        client = self._get_client()
-
-        model = (config or {}).get("model") or self._config.model or "gpt-4"
-        tools = (config or {}).get("tools")
-
-        self._logger.debug(
-            "Starting async stream from OpenAI (responses)",
-            model=model,
-            message_count=len(messages),
-            has_tools=tools is not None,
-        )
-
-        instructions, input_items = convert_messages_for_responses(messages)
-
-        request_params: dict[str, Any] = {
-            "model": model,
-            "input": input_items,
-            "stream": True,
-        }
-        if instructions:
-            request_params["instructions"] = instructions
-        if tools:
-            request_params["tools"] = convert_tools_for_responses(tools)
-
-        extra = get_extra_params(self._config.extra, self._logger)
-        request_params.update(extra)
-
-        stream = await client.responses.create(**request_params)
-
-        tool_calls_accumulator: dict[str, dict[str, Any]] = {}
-
-        async for event in stream:
-            event_type = event.type
-
-            if event_type == "response.output_text.delta":
-                yield {
-                    "content": event.delta,
-                    "provider": "openai",
-                }
-
-            elif event_type == "response.function_call_arguments.delta":
-                call_id = event.item_id
-                if call_id in tool_calls_accumulator:
-                    tool_calls_accumulator[call_id]["function"]["arguments"] += event.delta
-
-            elif event_type == "response.output_item.added":
-                item = event.item
-                if item.type == "function_call":
-                    tool_calls_accumulator[item.id] = {
-                        "id": item.call_id,
-                        "type": "function",
-                        "function": {
-                            "name": item.name,
-                            "arguments": "",
-                        },
-                    }
-
-            elif event_type == "response.completed":
-                payload: dict[str, Any] = {
-                    "content": "",
-                    "provider": "openai",
-                    "finish_reason": "tool_calls" if tool_calls_accumulator else "stop",
-                }
-                if tool_calls_accumulator:
-                    payload["tool_calls"] = list(tool_calls_accumulator.values())
-                yield payload
-
-    # ── Image generation ─────────────────────────────────────────────
 
     async def generate_image(
         self,
@@ -416,14 +268,18 @@ class AsyncOpenAIAdapter:
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Generate an image using OpenAI's DALL-E models asynchronously.
+        Generate an image via Sym Router Gateway asynchronously.
+
+        Routes the image generation request through the gateway,
+        injecting symrouter_metadata for cost tracking.
 
         Args:
             prompt: Text description of the image to generate
             config: Optional config with model, n, size, quality, response_format
 
         Returns:
-            Dict with created, data (url/revised_prompt), model, provider
+            Dict with created, data (url/revised_prompt), model, provider,
+            and optional symrouter gateway metadata
         """
         self.validate()
         client = self._get_client()
@@ -439,15 +295,20 @@ class AsyncOpenAIAdapter:
         if config and config.get("response_format"):
             params["response_format"] = config["response_format"]
 
+        # Inject symrouter_metadata via extra_body
+        metadata = self._build_symrouter_metadata()
+        if metadata:
+            params["extra_body"] = {"symrouter_metadata": metadata}
+
         self._logger.debug(
-            "Generating image via OpenAI (async)",
+            "Generating image via Sym Router Gateway (async)",
             model=params["model"],
             size=params["size"],
         )
 
         response = await client.images.generate(**params)
 
-        return {
+        result: dict[str, Any] = {
             "created": response.created,
             "data": [
                 {
@@ -458,10 +319,62 @@ class AsyncOpenAIAdapter:
                 for img in response.data
             ],
             "model": params["model"],
-            "provider": "openai",
+            "provider": "symrouter",
         }
 
-    # ── Shared helpers ─────────────────────────────────────────────────
+        # Extract gateway metadata
+        sr_meta = self._extract_symrouter_response(response)
+        if sr_meta:
+            result["symrouter"] = sr_meta
+
+        return result
+
+    def _build_symrouter_metadata(self) -> dict[str, Any] | None:
+        """
+        Build symrouter_metadata dict from config.extra.
+
+        Extracts end_customer_id, workflow_id, and tags from the
+        provider config's extra dict.
+
+        Returns:
+            Metadata dict or None if no metadata fields are present
+        """
+        extra = self._config.extra or {}
+        metadata: dict[str, Any] = {}
+
+        if "end_customer_id" in extra:
+            metadata["end_customer_id"] = extra["end_customer_id"]
+        if "workflow_id" in extra:
+            metadata["workflow_id"] = extra["workflow_id"]
+        if "tags" in extra:
+            metadata["tags"] = extra["tags"]
+
+        return metadata if metadata else None
+
+    def _extract_symrouter_response(self, response: Any) -> dict[str, Any]:
+        """
+        Extract Sym Router gateway metadata from the response.
+
+        The gateway may embed metadata in the response via extra fields.
+        Fields include: request_id, estimated_cost, provider, fallback.
+
+        Args:
+            response: Raw response from the OpenAI SDK
+
+        Returns:
+            Dict with gateway metadata, empty dict if not present
+        """
+        sr_data: dict[str, Any] = {}
+
+        # Try accessing from Pydantic model_extra (OpenAI SDK v1+ with Pydantic v2)
+        raw = getattr(response, "model_extra", None) or {}
+        if "symrouter" in raw:
+            sr_data = raw["symrouter"]
+        # Fallback: try direct attribute access
+        elif hasattr(response, "symrouter"):
+            sr_data = response.symrouter
+
+        return sr_data
 
     def _convert_messages_for_openai(
         self, messages: list[dict[str, Any]]
@@ -470,6 +383,7 @@ class AsyncOpenAIAdapter:
         Convert messages to OpenAI format, handling multimodal content.
 
         Ensures content blocks use OpenAI's image_url format.
+        Supports passthrough of images, audio, and other content types.
         """
         converted = []
         for msg in messages:
@@ -516,7 +430,7 @@ class AsyncOpenAIAdapter:
                                 },
                             })
                         else:
-                            # Pass through unknown types
+                            # Pass through unknown types (including image_url)
                             openai_content.append(block)
                     else:
                         openai_content.append(block)
@@ -528,9 +442,12 @@ class AsyncOpenAIAdapter:
         return converted
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create async OpenAI client."""
+        """Get or create async OpenAI client configured for Sym Router Gateway."""
         if self._client is None:
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(api_key=self._config.api_key)
+            self._client = AsyncOpenAI(
+                api_key=self._config.api_key,
+                base_url=self._config.base_url or SYMROUTER_DEFAULT_BASE_URL,
+            )
         return self._client

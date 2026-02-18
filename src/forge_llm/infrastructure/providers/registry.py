@@ -396,6 +396,12 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         is_local=True,
     )
 
+    _symrouter_meta = ProviderMetadata(
+        known_models=[],  # Models are dynamic, configured in the gateway
+        default_base_url="http://localhost:8000",
+        is_local=False,
+    )
+
     # --- Factory functions (lazy imports) ---
 
     def _openai_factory(config: ProviderConfig) -> ILLMProviderPort:
@@ -440,6 +446,18 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         from forge_llm.infrastructure.providers import AsyncXAIAdapter
         return AsyncXAIAdapter(config)
 
+    def _symrouter_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers.symrouter_adapter import (
+            SymRouterAdapter,
+        )
+        return SymRouterAdapter(config)
+
+    def _async_symrouter_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers.async_symrouter_adapter import (
+            AsyncSymRouterAdapter,
+        )
+        return AsyncSymRouterAdapter(config)
+
     # --- Register sync providers with metadata ---
     registry.register("openai", _openai_factory, _openai_meta)
     registry.register("anthropic", _anthropic_factory, _anthropic_meta)
@@ -448,11 +466,13 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register("xai", _xai_factory, _xai_meta)
     registry.register("claude-code", _claude_code_factory, _claude_code_meta)
     registry.register("codex", _codex_factory, _codex_meta)
+    registry.register("symrouter", _symrouter_factory, _symrouter_meta)
 
     # --- Register async providers ---
     registry.register_async("openai", _async_openai_factory)
     registry.register_async("anthropic", _async_anthropic_factory)
     registry.register_async("xai", _async_xai_factory)
+    registry.register_async("symrouter", _async_symrouter_factory)
 
 
 # Singleton instance

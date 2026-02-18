@@ -24,6 +24,7 @@ class IAsyncLLMProviderPort(Protocol):
         send: Send messages and get a response asynchronously
         stream: Send messages and stream response chunks asynchronously
         validate: Validate provider configuration
+        generate_image: Generate an image from a text prompt (optional)
     """
 
     @property
@@ -89,5 +90,32 @@ class IAsyncLLMProviderPort(Protocol):
 
         Raises:
             ProviderNotConfiguredError: If configuration is invalid
+        """
+        ...
+
+    async def generate_image(
+        self,
+        prompt: str,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate an image from a text prompt asynchronously.
+
+        Not all providers support image generation. Providers that
+        do not support this feature should raise NotImplementedError.
+
+        Args:
+            prompt: Text description of the image to generate
+            config: Optional config with model, n, size, quality,
+                    response_format
+
+        Returns:
+            Dict with created, data (url/revised_prompt), model,
+            and provider
+
+        Raises:
+            NotImplementedError: If provider does not support image generation
+            AuthenticationError: If API key is invalid
+            ProviderError: For other provider errors
         """
         ...

@@ -5,6 +5,7 @@ Provides async chat() and async stream_chat() methods.
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
@@ -189,7 +190,8 @@ class AsyncChatAgent:
             tool_calls = [
                 ToolCall.from_openai(tc) for tc in response.message.tool_calls
             ]
-            tool_results = self.execute_tool_calls(tool_calls)
+            # Run tool execution in thread pool to avoid blocking the event loop
+            tool_results = await asyncio.to_thread(self.execute_tool_calls, tool_calls)
 
             msg_list.append(response.message)
 
@@ -327,7 +329,9 @@ class AsyncChatAgent:
                 )
 
                 tool_calls = [ToolCall.from_openai(tc) for tc in tool_calls_data]
-                tool_results = self.execute_tool_calls(tool_calls)
+                # Run tool execution in thread pool to avoid blocking the event loop
+                # (tools like subprocess.run can block for 30-100s+)
+                tool_results = await asyncio.to_thread(self.execute_tool_calls, tool_calls)
 
                 assistant_msg = ChatMessage(
                     role="assistant",

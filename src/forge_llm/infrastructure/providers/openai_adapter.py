@@ -406,6 +406,59 @@ class OpenAIAdapter:
                     payload["tool_calls"] = list(tool_calls_accumulator.values())
                 yield payload
 
+    # ── Image generation ─────────────────────────────────────────────
+
+    def generate_image(
+        self,
+        prompt: str,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate an image using OpenAI's DALL-E models.
+
+        Args:
+            prompt: Text description of the image to generate
+            config: Optional config with model, n, size, quality, response_format
+
+        Returns:
+            Dict with created, data (url/revised_prompt), model, provider
+        """
+        self.validate()
+        client = self._get_client()
+
+        params: dict[str, Any] = {
+            "model": (config or {}).get("model", "dall-e-3"),
+            "prompt": prompt,
+            "n": (config or {}).get("n", 1),
+            "size": (config or {}).get("size", "1024x1024"),
+        }
+        if config and config.get("quality"):
+            params["quality"] = config["quality"]
+        if config and config.get("response_format"):
+            params["response_format"] = config["response_format"]
+
+        self._logger.debug(
+            "Generating image via OpenAI",
+            model=params["model"],
+            size=params["size"],
+        )
+
+        response = client.images.generate(**params)
+
+        return {
+            "created": response.created,
+            "data": [
+                {
+                    "url": getattr(img, "url", None),
+                    "b64_json": getattr(img, "b64_json", None),
+                    "revised_prompt": getattr(img, "revised_prompt", None),
+                }
+                for img in response.data
+            ],
+            "model": params["model"],
+            "provider": "openai",
+        }
+
     # ── Shared helpers ─────────────────────────────────────────────────
 
     def _convert_messages_for_openai(

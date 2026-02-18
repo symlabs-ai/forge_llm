@@ -7,11 +7,13 @@ Exports:
     - OllamaAdapter: Adapter for Ollama local LLMs
     - OpenRouterAdapter: Adapter for OpenRouter unified API
     - XAIAdapter: Adapter for xAI (Grok) API
+    - SymRouterAdapter: Adapter for Sym Router Gateway
     - ClaudeCodeAdapter: Adapter for Claude Code CLI
     - CodexAdapter: Adapter for OpenAI Codex CLI
     - AsyncOpenAIAdapter: Async adapter for OpenAI API
     - AsyncAnthropicAdapter: Async adapter for Anthropic API
     - AsyncXAIAdapter: Async adapter for xAI (Grok) API
+    - AsyncSymRouterAdapter: Async adapter for Sym Router Gateway
     - ProviderRegistry: Registry for provider discovery
     - ProviderMetadata: Static metadata for a provider
 """
@@ -20,6 +22,9 @@ from forge_llm.infrastructure.providers.async_anthropic_adapter import (
     AsyncAnthropicAdapter,
 )
 from forge_llm.infrastructure.providers.async_openai_adapter import AsyncOpenAIAdapter
+from forge_llm.infrastructure.providers.async_symrouter_adapter import (
+    AsyncSymRouterAdapter,
+)
 from forge_llm.infrastructure.providers.async_xai_adapter import AsyncXAIAdapter
 from forge_llm.infrastructure.providers.claude_code_adapter import ClaudeCodeAdapter
 from forge_llm.infrastructure.providers.codex_adapter import CodexAdapter
@@ -35,6 +40,7 @@ from forge_llm.infrastructure.providers.registry import (
     get_provider_registry,
     reset_provider_registry,
 )
+from forge_llm.infrastructure.providers.symrouter_adapter import SymRouterAdapter
 from forge_llm.infrastructure.providers.xai_adapter import XAIAdapter
 
 __all__ = [
@@ -47,10 +53,12 @@ __all__ = [
     "OllamaAdapter",
     "OpenRouterAdapter",
     "XAIAdapter",
+    "SymRouterAdapter",
     "ClaudeCodeAdapter",
     "CodexAdapter",
     "AsyncOpenAIAdapter",
     "AsyncAnthropicAdapter",
     "AsyncXAIAdapter",
+    "AsyncSymRouterAdapter",
     "OpenAITranscriptionAdapter",
 ]

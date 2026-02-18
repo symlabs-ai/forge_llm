@@ -28,6 +28,7 @@ class ILLMProviderPort(Protocol):
         send: Send messages and get a response
         stream: Send messages and stream response chunks
         validate: Validate provider configuration
+        generate_image: Generate an image from a text prompt (optional)
     """
 
     @property
@@ -106,5 +107,32 @@ class ILLMProviderPort(Protocol):
 
         Raises:
             ProviderNotConfiguredError: If configuration is invalid
+        """
+        ...
+
+    def generate_image(
+        self,
+        prompt: str,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate an image from a text prompt.
+
+        Not all providers support image generation. Providers that
+        do not support this feature should raise NotImplementedError.
+
+        Args:
+            prompt: Text description of the image to generate
+            config: Optional config with model, n, size, quality,
+                    response_format
+
+        Returns:
+            Dict with created, data (url/revised_prompt), model,
+            and provider
+
+        Raises:
+            NotImplementedError: If provider does not support image generation
+            AuthenticationError: If API key is invalid
+            ProviderError: For other provider errors
         """
         ...
