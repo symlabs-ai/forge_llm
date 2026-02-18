@@ -14,6 +14,8 @@ RESPONSES_ONLY_MODELS = frozenset({
     "gpt-5-codex",
 })
 
+_RESPONSES_SUFFIXES = ("-pro", "-codex")
+
 _KNOWN_EXTRA_PARAMS = frozenset({
     "reasoning_effort",
     "reasoning",
@@ -24,8 +26,31 @@ _KNOWN_EXTRA_PARAMS = frozenset({
 
 
 def needs_responses_api(model: str) -> bool:
-    """Return True if *model* requires the Responses API."""
-    return model in RESPONSES_ONLY_MODELS
+    """Return True if *model* requires the Responses API.
+
+    Uses explicit set + suffix-based pattern matching for forward-compatibility.
+    New models like gpt-5.3-pro or gpt-6-codex are detected automatically.
+    """
+    if model in RESPONSES_ONLY_MODELS:
+        return True
+    return any(model.endswith(s) for s in _RESPONSES_SUFFIXES)
+
+
+def should_fallback_to_responses(exc: Exception) -> bool:
+    """Check if a Completions API error suggests trying Responses API instead.
+
+    Only triggers on client errors that indicate the model is not available
+    via the Completions endpoint (400/404). Auth, rate-limit, and server
+    errors are never retried.
+    """
+    exc_type = type(exc).__name__
+    if exc_type == "NotFoundError":
+        return True
+    if exc_type == "BadRequestError":
+        msg = str(exc).lower()
+        if "model" in msg or "not supported" in msg or "not available" in msg:
+            return True
+    return False
 
 
 def convert_messages_for_responses(

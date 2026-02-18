@@ -20,6 +20,7 @@ from forge_llm.infrastructure.providers._openai_responses import (
     get_extra_params,
     needs_responses_api,
     parse_response_output,
+    should_fallback_to_responses,
 )
 
 if TYPE_CHECKING:
@@ -132,7 +133,17 @@ class OpenAIAdapter:
         model = (config or {}).get("model") or self._config.model or "gpt-4"
         if needs_responses_api(model):
             return self._send_via_responses(messages, config)
-        return self._send_via_completions(messages, config)
+        try:
+            return self._send_via_completions(messages, config)
+        except Exception as exc:
+            if should_fallback_to_responses(exc):
+                self._logger.warning(
+                    "Completions API rejected model, falling back to Responses API",
+                    model=model,
+                    error=str(exc),
+                )
+                return self._send_via_responses(messages, config)
+            raise
 
     def stream(
         self,
@@ -157,7 +168,18 @@ class OpenAIAdapter:
         if needs_responses_api(model):
             yield from self._stream_via_responses(messages, config)
         else:
-            yield from self._stream_via_completions(messages, config)
+            try:
+                yield from self._stream_via_completions(messages, config)
+            except Exception as exc:
+                if should_fallback_to_responses(exc):
+                    self._logger.warning(
+                        "Completions API rejected model, falling back to Responses API (stream)",
+                        model=model,
+                        error=str(exc),
+                    )
+                    yield from self._stream_via_responses(messages, config)
+                else:
+                    raise
 
     # ── Completions path (existing logic) ──────────────────────────────
 
