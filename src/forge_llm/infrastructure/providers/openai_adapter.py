@@ -50,11 +50,12 @@ class OpenAIAdapter:
         "o1-mini",
     ]
 
-    # Prefixes for non-chat models (TTS, embeddings, moderation, etc.)
+    # Prefixes for non-chat models (TTS, embeddings, moderation, image gen, etc.)
     _NON_CHAT_PREFIXES = (
         "tts-",
         "whisper-",
         "dall-e-",
+        "gpt-image-",
         "text-embedding-",
         "text-moderation-",
         "babbage-",
@@ -408,26 +409,58 @@ class OpenAIAdapter:
 
     # ── Image generation ─────────────────────────────────────────────
 
+    # Models that use the GPT-image API (different params from DALL-E)
+    _GPT_IMAGE_MODELS = frozenset({
+        "gpt-image-1",
+        "gpt-image-1-mini",
+        "gpt-image-1.5",
+    })
+
     def generate_image(
         self,
         prompt: str,
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Generate an image using OpenAI's DALL-E models.
+        Generate an image using OpenAI's image models.
+
+        Supports both DALL-E models (dall-e-2, dall-e-3) and GPT-image
+        models (gpt-image-1, gpt-image-1-mini, gpt-image-1.5).
+
+        GPT-image models use different parameters:
+        - quality: "low", "medium", "high" (default: "high")
+        - size: "1024x1024", "1024x1536", "1536x1024"
+        - output_format: "png", "webp", "jpeg"
+        - background: "transparent", "opaque"
+        - Always returns b64_json (no URL mode)
 
         Args:
             prompt: Text description of the image to generate
-            config: Optional config with model, n, size, quality, response_format
+            config: Optional config with model, n, size, quality, response_format,
+                    output_format, background
 
         Returns:
-            Dict with created, data (url/revised_prompt), model, provider
+            Dict with created, data (url/b64_json/revised_prompt), model, provider
         """
         self.validate()
         client = self._get_client()
 
+        model = (config or {}).get("model", "dall-e-3")
+
+        if model in self._GPT_IMAGE_MODELS:
+            return self._generate_image_gpt(client, prompt, model, config)
+        return self._generate_image_dalle(client, prompt, model, config)
+
+    def _generate_image_dalle(
+        self,
+        client: Any,
+        prompt: str,
+        model: str,
+        config: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Generate image with DALL-E 2/3 models."""
         params: dict[str, Any] = {
-            "model": (config or {}).get("model", "dall-e-3"),
+            "model": model,
             "prompt": prompt,
             "n": (config or {}).get("n", 1),
             "size": (config or {}).get("size", "1024x1024"),
@@ -438,8 +471,8 @@ class OpenAIAdapter:
             params["response_format"] = config["response_format"]
 
         self._logger.debug(
-            "Generating image via OpenAI",
-            model=params["model"],
+            "Generating image via OpenAI (DALL-E)",
+            model=model,
             size=params["size"],
         )
 
@@ -455,9 +488,68 @@ class OpenAIAdapter:
                 }
                 for img in response.data
             ],
-            "model": params["model"],
+            "model": model,
             "provider": "openai",
         }
+
+    def _generate_image_gpt(
+        self,
+        client: Any,
+        prompt: str,
+        model: str,
+        config: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Generate image with GPT-image models (gpt-image-1, etc).
+
+        GPT-image models always return b64_json and support different
+        quality levels and output formats compared to DALL-E.
+        """
+        params: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "n": (config or {}).get("n", 1),
+            "size": (config or {}).get("size", "1024x1024"),
+            "quality": (config or {}).get("quality", "high"),
+        }
+        if config and config.get("output_format"):
+            params["output_format"] = config["output_format"]
+        if config and config.get("background"):
+            params["background"] = config["background"]
+
+        self._logger.debug(
+            "Generating image via OpenAI (GPT-image)",
+            model=model,
+            size=params["size"],
+            quality=params["quality"],
+        )
+
+        response = client.images.generate(**params)
+
+        result_data = []
+        for img in response.data:
+            result_data.append({
+                "url": getattr(img, "url", None),
+                "b64_json": getattr(img, "b64_json", None),
+                "revised_prompt": getattr(img, "revised_prompt", None),
+            })
+
+        result: dict[str, Any] = {
+            "created": response.created,
+            "data": result_data,
+            "model": model,
+            "provider": "openai",
+        }
+
+        # GPT-image models return token usage
+        usage = getattr(response, "usage", None)
+        if usage:
+            result["usage"] = {
+                "input_tokens": getattr(usage, "input_tokens", 0),
+                "output_tokens": getattr(usage, "output_tokens", 0),
+                "total_tokens": getattr(usage, "total_tokens", 0),
+            }
+
+        return result
 
     # ── Shared helpers ─────────────────────────────────────────────────
 
