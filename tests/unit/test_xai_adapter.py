@@ -392,6 +392,31 @@ class TestXAIAdapter:
         assert sent_content[1]["type"] == "image_url"
         assert sent_content[1]["image_url"]["url"] == "https://example.com/img.png"
 
+    def test_list_models_filters_image_models(self):
+        """list_models() should exclude grok-2-image from chat model list."""
+        mock_client = MagicMock()
+
+        mock_model_chat = MagicMock()
+        mock_model_chat.id = "grok-4.1-fast"
+        mock_model_image = MagicMock()
+        mock_model_image.id = "grok-2-image"
+        mock_model_chat2 = MagicMock()
+        mock_model_chat2.id = "grok-3"
+
+        mock_client.models.list.return_value = MagicMock(
+            data=[mock_model_chat, mock_model_image, mock_model_chat2]
+        )
+
+        config = ProviderConfig(provider="xai", api_key="test-key")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        models = adapter.list_models()
+
+        assert "grok-4.1-fast" in models
+        assert "grok-3" in models
+        assert "grok-2-image" not in models
+
     def test_chat_agent_creates_xai_provider(self):
         """ChatAgent should create XAIAdapter for provider='xai'."""
         agent = ChatAgent(provider="xai", api_key="test-key", model="grok-4.1-fast")

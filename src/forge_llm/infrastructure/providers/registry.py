@@ -339,6 +339,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
             "grok-3",
             "grok-3-mini-fast",
             "grok-3-mini",
+            "grok-2-image",
         ],
         default_base_url="https://api.x.ai/v1",
     )

@@ -2,7 +2,7 @@
 Unit tests for image generation across providers.
 
 Tests the generate_image() method on OpenAI, AsyncOpenAI,
-SymRouter, and AsyncSymRouter adapters.
+xAI, AsyncXAI, SymRouter, and AsyncSymRouter adapters.
 """
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,6 +11,8 @@ import pytest
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.providers.openai_adapter import OpenAIAdapter
 from forge_llm.infrastructure.providers.async_openai_adapter import AsyncOpenAIAdapter
+from forge_llm.infrastructure.providers.xai_adapter import XAIAdapter
+from forge_llm.infrastructure.providers.async_xai_adapter import AsyncXAIAdapter
 from forge_llm.infrastructure.providers.symrouter_adapter import SymRouterAdapter
 from forge_llm.infrastructure.providers.async_symrouter_adapter import (
     AsyncSymRouterAdapter,
@@ -298,17 +300,213 @@ class TestAsyncSymRouterImageGeneration:
         assert result["symrouter"]["request_id"] == "sr_img_async"
 
 
+class TestXAIImageGeneration:
+    """Tests for xAI adapter image generation."""
+
+    def test_generate_image_default_params(self):
+        """generate_image() should use grok-2-image and 1024x1024 by default."""
+        mock_client = MagicMock()
+        mock_client.images.generate.return_value = _make_image_response()
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        result = adapter.generate_image("A cat astronaut")
+
+        call_kwargs = mock_client.images.generate.call_args.kwargs
+        assert call_kwargs["model"] == "grok-2-image"
+        assert call_kwargs["n"] == 1
+        assert call_kwargs["size"] == "1024x1024"
+        assert call_kwargs["prompt"] == "A cat astronaut"
+        assert result["provider"] == "xai"
+        assert result["model"] == "grok-2-image"
+
+    def test_generate_image_custom_size(self):
+        """generate_image() should accept custom size."""
+        mock_client = MagicMock()
+        mock_client.images.generate.return_value = _make_image_response()
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        adapter.generate_image(
+            "A landscape",
+            config={"model": "grok-2-image", "size": "1792x1024", "n": 1},
+        )
+
+        call_kwargs = mock_client.images.generate.call_args.kwargs
+        assert call_kwargs["size"] == "1792x1024"
+
+    def test_generate_image_portrait_size(self):
+        """generate_image() should accept portrait size 1024x1792."""
+        mock_client = MagicMock()
+        mock_client.images.generate.return_value = _make_image_response()
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        adapter.generate_image(
+            "A portrait",
+            config={"model": "grok-2-image", "size": "1024x1792"},
+        )
+
+        call_kwargs = mock_client.images.generate.call_args.kwargs
+        assert call_kwargs["size"] == "1024x1792"
+
+    def test_generate_image_returns_correct_structure(self):
+        """Response should have created, data, model, provider -- same as OpenAI."""
+        mock_client = MagicMock()
+        mock_response = _make_image_response(
+            url="https://xai-images.example.com/img.png",
+            revised_prompt="An astronaut cat in space",
+            created=1700000001,
+        )
+        mock_client.images.generate.return_value = mock_response
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        result = adapter.generate_image("A cat astronaut")
+
+        # Verify identical contract to OpenAI
+        assert "created" in result
+        assert "data" in result
+        assert "model" in result
+        assert "provider" in result
+        assert result["created"] == 1700000001
+        assert len(result["data"]) == 1
+        assert result["data"][0]["url"] == "https://xai-images.example.com/img.png"
+        assert result["data"][0]["b64_json"] is None
+        assert result["data"][0]["revised_prompt"] == "An astronaut cat in space"
+        assert result["model"] == "grok-2-image"
+        assert result["provider"] == "xai"
+
+    def test_generate_image_with_b64_response(self):
+        """generate_image() should handle b64_json response format."""
+        mock_client = MagicMock()
+
+        mock_img = MagicMock()
+        mock_img.url = None
+        mock_img.b64_json = "iVBORw0KGgoAAAANSUhEUg..."
+        mock_img.revised_prompt = "A cat"
+
+        mock_response = MagicMock()
+        mock_response.created = 1700000000
+        mock_response.data = [mock_img]
+
+        mock_client.images.generate.return_value = mock_response
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = XAIAdapter(config)
+        adapter._client = mock_client
+
+        result = adapter.generate_image(
+            "A cat",
+            config={"response_format": "b64_json"},
+        )
+
+        assert result["data"][0]["url"] is None
+        assert result["data"][0]["b64_json"] == "iVBORw0KGgoAAAANSUhEUg..."
+
+    def test_generate_image_same_contract_as_openai(self):
+        """xAI generate_image() result keys must match OpenAI generate_image() keys."""
+        mock_client_xai = MagicMock()
+        mock_client_xai.images.generate.return_value = _make_image_response()
+
+        mock_client_openai = MagicMock()
+        mock_client_openai.images.generate.return_value = _make_image_response()
+
+        xai_adapter = XAIAdapter(
+            ProviderConfig(provider="xai", api_key="xai-test")
+        )
+        xai_adapter._client = mock_client_xai
+
+        openai_adapter = OpenAIAdapter(
+            ProviderConfig(provider="openai", api_key="sk-test")
+        )
+        openai_adapter._client = mock_client_openai
+
+        xai_result = xai_adapter.generate_image("A cat")
+        openai_result = openai_adapter.generate_image("A cat")
+
+        # Same top-level keys
+        assert set(xai_result.keys()) == set(openai_result.keys())
+        # Same data item keys
+        assert set(xai_result["data"][0].keys()) == set(openai_result["data"][0].keys())
+
+
+class TestAsyncXAIImageGeneration:
+    """Tests for async xAI adapter image generation."""
+
+    @pytest.mark.asyncio
+    async def test_generate_image_async(self):
+        """Async generate_image() should work with await."""
+        mock_client = AsyncMock()
+        mock_client.images.generate.return_value = _make_image_response()
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = AsyncXAIAdapter(config)
+        adapter._client = mock_client
+
+        result = await adapter.generate_image("A sunset")
+
+        assert result["provider"] == "xai"
+        assert result["model"] == "grok-2-image"
+        assert len(result["data"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_generate_image_async_custom_params(self):
+        """Async generate_image() should accept custom params."""
+        mock_client = AsyncMock()
+        mock_client.images.generate.return_value = _make_image_response()
+
+        config = ProviderConfig(provider="xai", api_key="xai-test")
+        adapter = AsyncXAIAdapter(config)
+        adapter._client = mock_client
+
+        await adapter.generate_image(
+            "A landscape",
+            config={"model": "grok-2-image", "size": "1792x1024", "n": 1},
+        )
+
+        call_kwargs = mock_client.images.generate.call_args.kwargs
+        assert call_kwargs["model"] == "grok-2-image"
+        assert call_kwargs["size"] == "1792x1024"
+
+
+class TestXAIImageRegistration:
+    """Tests that grok-2-image is properly registered in the provider registry."""
+
+    def test_grok_2_image_in_registry_known_models(self):
+        """grok-2-image should appear in xAI provider's known models."""
+        from forge_llm.infrastructure.providers.registry import (
+            get_provider_registry,
+            reset_provider_registry,
+        )
+
+        reset_provider_registry()
+        registry = get_provider_registry()
+        info = registry.get_provider_info("xai")
+
+        assert "grok-2-image" in info["models"]
+        # Clean up
+        reset_provider_registry()
+
+    def test_grok_2_image_in_supported_models(self):
+        """grok-2-image should be in XAIAdapter.SUPPORTED_MODELS."""
+        assert "grok-2-image" in XAIAdapter.SUPPORTED_MODELS
+
+    def test_grok_2_image_in_async_supported_models(self):
+        """grok-2-image should be in AsyncXAIAdapter.SUPPORTED_MODELS."""
+        assert "grok-2-image" in AsyncXAIAdapter.SUPPORTED_MODELS
+
+
 class TestUnsupportedProviders:
     """Tests that unsupported providers handle generate_image correctly."""
-
-    def test_xai_adapter_has_no_generate_image(self):
-        """xAI adapter should not have generate_image method."""
-        from forge_llm.infrastructure.providers.xai_adapter import XAIAdapter
-
-        config = ProviderConfig(provider="xai", api_key="test-key")
-        adapter = XAIAdapter(config)
-
-        assert not hasattr(adapter, "generate_image")
 
     def test_anthropic_adapter_has_no_generate_image(self):
         """Anthropic adapter should not have generate_image method."""

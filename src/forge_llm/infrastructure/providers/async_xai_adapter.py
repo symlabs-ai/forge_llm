@@ -1,7 +1,7 @@
 """
 AsyncXAIAdapter - Async adapter for xAI (Grok) API.
 
-Implements async ILLMProviderPort for xAI chat completions.
+Implements async ILLMProviderPort for xAI chat completions and image generation.
 xAI uses an OpenAI-compatible API with a different base URL.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ XAI_BASE_URL = "https://api.x.ai/v1"
 
 class AsyncXAIAdapter:
     """
-    Async adapter for xAI (Grok) chat completions API.
+    Async adapter for xAI (Grok) chat completions and image generation API.
 
     Uses the OpenAI SDK with xAI's base URL for async operations.
 
@@ -30,6 +30,9 @@ class AsyncXAIAdapter:
         adapter = AsyncXAIAdapter(config)
 
         response = await adapter.send([{"role": "user", "content": "Hello"}])
+
+        # Image generation
+        image = await adapter.generate_image("A cat astronaut", config={"model": "grok-2-image"})
     """
 
     SUPPORTED_MODELS = [
@@ -40,7 +43,17 @@ class AsyncXAIAdapter:
         "grok-3-fast",
         "grok-3-mini",
         "grok-3",
+        "grok-2-image",
     ]
+
+    # Image generation models (not chat-capable)
+    _XAI_IMAGE_MODELS = frozenset({"grok-2-image"})
+
+    # Valid sizes for xAI image generation
+    _XAI_IMAGE_VALID_SIZES = frozenset({"1024x1024", "1024x1792", "1792x1024"})
+
+    # Non-chat models to filter from list_models()
+    _NON_CHAT_MODELS = frozenset({"grok-2-image"})
 
     def __init__(self, config: ProviderConfig) -> None:
         self._config = config
@@ -72,17 +85,21 @@ class AsyncXAIAdapter:
         return True
 
     async def list_models(self) -> list[str]:
-        """Fetch available models from the xAI API asynchronously.
+        """Fetch available chat models from the xAI API asynchronously.
 
         Uses the OpenAI-compatible GET /v1/models endpoint.
+        Filters out non-chat models (e.g. image generation models).
 
         Returns:
-            Sorted list of model identifiers.
+            Sorted list of chat-capable model identifiers.
         """
         self.validate()
         client = self._get_client()
         response = await client.models.list()
-        return sorted(m.id for m in response.data)
+        return sorted(
+            m.id for m in response.data
+            if m.id not in self._NON_CHAT_MODELS
+        )
 
     async def send(
         self,
@@ -252,6 +269,69 @@ class AsyncXAIAdapter:
                     "provider": "xai",
                     "finish_reason": finish_reason,
                 }
+
+    # ── Image generation ─────────────────────────────────────────────
+
+    async def generate_image(
+        self,
+        prompt: str,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate an image using xAI's image models asynchronously.
+
+        xAI's image API is OpenAI-compatible, using the same
+        client.images.generate() endpoint routed through xAI's base URL.
+
+        Supported models: grok-2-image
+        Valid sizes: 1024x1024, 1024x1792, 1792x1024
+
+        Args:
+            prompt: Text description of the image to generate
+            config: Optional config with model, n, size, response_format
+
+        Returns:
+            Dict with created, data (url/b64_json/revised_prompt), model, provider
+        """
+        self.validate()
+        client = self._get_client()
+
+        model = (config or {}).get("model", "grok-2-image")
+        n = (config or {}).get("n", 1)
+        size = (config or {}).get("size", "1024x1024")
+
+        params: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+        }
+        if config and config.get("response_format"):
+            params["response_format"] = config["response_format"]
+
+        self._logger.debug(
+            "Generating image via xAI (async)",
+            model=model,
+            size=size,
+        )
+
+        response = await client.images.generate(**params)
+
+        return {
+            "created": response.created,
+            "data": [
+                {
+                    "url": getattr(img, "url", None),
+                    "b64_json": getattr(img, "b64_json", None),
+                    "revised_prompt": getattr(img, "revised_prompt", None),
+                }
+                for img in response.data
+            ],
+            "model": model,
+            "provider": "xai",
+        }
+
+    # ── Shared helpers ─────────────────────────────────────────────────
 
     def _convert_messages_for_openai(
         self, messages: list[dict[str, Any]]
