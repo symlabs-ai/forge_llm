@@ -13,6 +13,8 @@ Exports:
     - AsyncOpenAIAdapter: Async adapter for OpenAI API
     - AsyncAnthropicAdapter: Async adapter for Anthropic API
     - AsyncXAIAdapter: Async adapter for xAI (Grok) API
+    - AsyncOllamaAdapter: Async adapter for Ollama local LLMs
+    - AsyncOpenRouterAdapter: Async adapter for OpenRouter unified API
     - AsyncSymRouterAdapter: Async adapter for Sym Router Gateway
     - ProviderRegistry: Registry for provider discovery
     - ProviderMetadata: Static metadata for a provider
@@ -21,7 +23,11 @@ from forge_llm.infrastructure.providers.anthropic_adapter import AnthropicAdapte
 from forge_llm.infrastructure.providers.async_anthropic_adapter import (
     AsyncAnthropicAdapter,
 )
+from forge_llm.infrastructure.providers.async_ollama_adapter import AsyncOllamaAdapter
 from forge_llm.infrastructure.providers.async_openai_adapter import AsyncOpenAIAdapter
+from forge_llm.infrastructure.providers.async_openrouter_adapter import (
+    AsyncOpenRouterAdapter,
+)
 from forge_llm.infrastructure.providers.async_symrouter_adapter import (
     AsyncSymRouterAdapter,
 )
@@ -59,6 +65,8 @@ __all__ = [
     "AsyncOpenAIAdapter",
     "AsyncAnthropicAdapter",
     "AsyncXAIAdapter",
+    "AsyncOllamaAdapter",
+    "AsyncOpenRouterAdapter",
     "AsyncSymRouterAdapter",
     "OpenAITranscriptionAdapter",
 ]

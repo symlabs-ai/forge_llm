@@ -453,6 +453,18 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         )
         return SymRouterAdapter(config)
 
+    def _async_ollama_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers.async_ollama_adapter import (
+            AsyncOllamaAdapter,
+        )
+        return AsyncOllamaAdapter(config)
+
+    def _async_openrouter_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers.async_openrouter_adapter import (
+            AsyncOpenRouterAdapter,
+        )
+        return AsyncOpenRouterAdapter(config)
+
     def _async_symrouter_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
         from forge_llm.infrastructure.providers.async_symrouter_adapter import (
             AsyncSymRouterAdapter,
@@ -473,6 +485,8 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register_async("openai", _async_openai_factory)
     registry.register_async("anthropic", _async_anthropic_factory)
     registry.register_async("xai", _async_xai_factory)
+    registry.register_async("ollama", _async_ollama_factory)
+    registry.register_async("openrouter", _async_openrouter_factory)
     registry.register_async("symrouter", _async_symrouter_factory)
 
 
