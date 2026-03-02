@@ -1,60 +1,34 @@
 # ForgeLLM
 
-[![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-810%20passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)]()
+[![Version](https://img.shields.io/badge/version-0.7.4-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)]()
 
 Unified LLM client with provider portability. Write once, run on any provider.
 
-## For AI Code Agents
-
-**First time using ForgeLLM?** Access full documentation programmatically:
-
-```python
-from forge_llm.dev import get_agent_quickstart
-
-guide = get_agent_quickstart()  # Full API documentation
-print(guide)
-```
-
-**Quick reference:**
-```python
-from forge_llm import ChatAgent
-
-agent = ChatAgent(provider="openai", model="gpt-4o-mini")
-response = agent.chat("Your question")
-print(response.content)
-```
-
-Full documentation: [docs/product/agents/](./docs/product/agents/)
-
 ## Features
 
-- **Provider Portability**: Same code works with OpenAI, Anthropic, xAI (Grok), Ollama, OpenRouter, Claude Code CLI, and Codex CLI
-- **CLI Coding Agents**: Run Claude Code and OpenAI Codex as providers via subprocess
-- **Plugin Architecture**: Register custom providers via `ProviderRegistry`
-- **Multimodal Support**: Send images (URL/Base64) and audio (WAV/MP3) to vision and speech models
-- **Async Support**: Non-blocking async/await API for high-throughput applications
-- **Tool Calling**: Define custom tools that LLMs can invoke automatically
-- **Session Management**: Automatic context window management with compaction strategies
-- **Streaming**: Real-time response streaming with tool support
-- **Structured Logging**: JSON logging with correlation IDs for observability
-- **Type Safety**: Full mypy strict type checking support
+- **Provider Portability** -- Same code works with OpenAI, Anthropic, xAI (Grok), Ollama, OpenRouter, Claude Code CLI, and Codex CLI
+- **MCP Client** -- Connect to any [Model Context Protocol](https://modelcontextprotocol.io/) server and use its tools automatically
+- **CLI Coding Agents** -- Run Claude Code and OpenAI Codex as providers via subprocess
+- **Plugin Architecture** -- Register custom providers via `ProviderRegistry`
+- **Multimodal Support** -- Send images (URL/Base64) and audio (WAV/MP3) to vision and speech models
+- **Async Support** -- Full sync + async API for every provider
+- **Tool Calling** -- Define custom tools that LLMs can invoke automatically
+- **Session Management** -- Automatic context window management with compaction strategies
+- **Streaming** -- Real-time response streaming with tool support
+- **Structured Logging** -- JSON logging with correlation IDs for observability
+- **Type Safety** -- Full mypy strict type checking support
 
 ## Installation
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd forge_llm
+pip install forge-llm
 
-# Install with Poetry
-poetry install
-
-# Or with pip
-pip install -e .
+# With MCP support
+pip install forge-llm[mcp]
 ```
 
 ## Quick Start
@@ -64,10 +38,8 @@ pip install -e .
 ```python
 from forge_llm import ChatAgent
 
-# Create agent with OpenAI
 agent = ChatAgent(provider="openai", api_key="sk-...")
 
-# Simple chat
 response = agent.chat("Hello, how are you?")
 print(response.content)
 print(f"Tokens used: {response.token_usage.total_tokens}")
@@ -84,7 +56,7 @@ for chunk in agent.stream_chat("Tell me a story"):
     print(chunk.content, end="", flush=True)
 ```
 
-### Async API
+### Async
 
 ```python
 import asyncio
@@ -93,7 +65,6 @@ from forge_llm import AsyncChatAgent
 async def main():
     agent = AsyncChatAgent(provider="openai", api_key="sk-...", model="gpt-4o")
 
-    # Single async call
     response = await agent.chat("Hello!")
 
     # Concurrent requests
@@ -101,52 +72,6 @@ async def main():
     responses = await asyncio.gather(*tasks)
 
 asyncio.run(main())
-```
-
-### Session Management
-
-```python
-from forge_llm import ChatAgent, ChatSession, TruncateCompactor
-
-agent = ChatAgent(provider="openai", api_key="sk-...")
-
-# Session with auto-compaction
-session = ChatSession(
-    system_prompt="You are a helpful assistant",
-    max_tokens=4000,
-    compactor=TruncateCompactor(),
-)
-
-# Chat maintains context
-agent.chat("My name is John", session=session)
-response = agent.chat("What's my name?", session=session)
-print(response.content)  # "Your name is John"
-```
-
-### LLM-Based Context Summarization
-
-```python
-from forge_llm import ChatAgent, ChatSession, SummarizeCompactor
-
-agent = ChatAgent(provider="openai", api_key="sk-...")
-
-# SummarizeCompactor uses LLM to compress old messages
-compactor = SummarizeCompactor(
-    agent=agent,
-    summary_tokens=200,   # Target summary size
-    keep_recent=4,        # Keep last 4 messages intact
-    max_retries=3,        # Retry on API failures
-)
-
-session = ChatSession(
-    system_prompt="You are a helpful assistant",
-    max_tokens=4000,
-    compactor=compactor,
-)
-
-# Old messages are summarized instead of truncated
-agent.chat("My name is Alice, I'm a data scientist", session=session)
-# ... many messages later, context is preserved via summaries
 ```
 
 ### Tool Calling
@@ -163,9 +88,76 @@ def get_weather(location: str) -> str:
 
 agent = ChatAgent(provider="openai", api_key="sk-...", tools=registry)
 
-# Tools are automatically called
 response = agent.chat("What's the weather in London?")
 print(response.content)  # Uses get_weather tool
+```
+
+### MCP Tools
+
+Connect to any MCP server and use its tools with any provider:
+
+```python
+from forge_llm import AsyncChatAgent
+from forge_llm.mcp import McpToolset
+
+# Local MCP server via stdio
+async with McpToolset.from_stdio("npx", ["-y", "@upstash/context7-mcp"]) as tools:
+    agent = AsyncChatAgent(provider="openai", api_key="sk-...", tools=tools)
+    response = await agent.chat("Search the FastAPI docs for routing")
+
+# Remote MCP server via HTTP
+async with McpToolset.from_http("http://localhost:8000/mcp") as tools:
+    agent = AsyncChatAgent(provider="anthropic", api_key="sk-...", tools=tools)
+    response = await agent.chat("Query the database")
+
+# Multiple MCP servers merged into one registry
+async with McpToolset.from_servers([
+    {"transport": "stdio", "command": "npx", "args": ["-y", "@upstash/context7-mcp"]},
+    {"transport": "http", "url": "http://localhost:8000/mcp"},
+]) as tools:
+    agent = AsyncChatAgent(provider="openai", api_key="sk-...", tools=tools)
+```
+
+### Session Management
+
+```python
+from forge_llm import ChatAgent, ChatSession, TruncateCompactor
+
+agent = ChatAgent(provider="openai", api_key="sk-...")
+
+session = ChatSession(
+    system_prompt="You are a helpful assistant",
+    max_tokens=4000,
+    compactor=TruncateCompactor(),
+)
+
+agent.chat("My name is John", session=session)
+response = agent.chat("What's my name?", session=session)
+print(response.content)  # "Your name is John"
+```
+
+### LLM-Based Context Summarization
+
+```python
+from forge_llm import ChatAgent, ChatSession, SummarizeCompactor
+
+agent = ChatAgent(provider="openai", api_key="sk-...")
+
+compactor = SummarizeCompactor(
+    agent=agent,
+    summary_tokens=200,
+    keep_recent=4,
+    max_retries=3,
+)
+
+session = ChatSession(
+    system_prompt="You are a helpful assistant",
+    max_tokens=4000,
+    compactor=compactor,
+)
+
+agent.chat("My name is Alice, I'm a data scientist", session=session)
+# Old messages are summarized instead of truncated
 ```
 
 ### Vision (Images)
@@ -188,13 +180,6 @@ with open("photo.jpg", "rb") as f:
 img = ImageContent.from_base64(data=data, media_type="image/jpeg")
 msg = ChatMessage.user_with_image("Describe this photo", img)
 response = agent.chat([msg])
-
-# Multiple images
-images = [
-    ImageContent.from_url("https://example.com/1.png"),
-    ImageContent.from_url("https://example.com/2.png"),
-]
-msg = ChatMessage.user_with_images("Compare these images", images)
 ```
 
 ### Audio Input
@@ -202,33 +187,61 @@ msg = ChatMessage.user_with_images("Compare these images", images)
 ```python
 from forge_llm import ChatAgent, ChatMessage, AudioContent
 
-# Audio only supported by OpenAI (gpt-4o-audio-preview)
 agent = ChatAgent(provider="openai", api_key="sk-...", model="gpt-4o-audio-preview")
 
-# From file (WAV or MP3)
 audio = AudioContent.from_file("recording.wav")
 msg = ChatMessage.user_with_audio("Transcribe this audio", audio)
 response = agent.chat([msg])
-
-# From Base64
-import base64
-with open("speech.mp3", "rb") as f:
-    data = base64.b64encode(f.read()).decode()
-
-audio = AudioContent.from_base64(data=data, format="mp3")
-msg = ChatMessage.user_with_audio("What is being said?", audio)
 ```
+
+## Supported Providers
+
+| Provider | Sync | Async | Vision | Audio | Notes |
+|----------|------|-------|--------|-------|-------|
+| **OpenAI** | yes | yes | yes | yes | Direct API + Responses API auto-detection |
+| **Anthropic** | yes | yes | yes | -- | Direct API |
+| **xAI (Grok)** | yes | yes | -- | -- | OpenAI-compatible API |
+| **Ollama** | yes | yes | -- | -- | Local models |
+| **OpenRouter** | yes | yes | * | * | 100+ models, depends on underlying model |
+| **Claude Code** | yes | -- | -- | -- | CLI subprocess |
+| **Codex** | yes | -- | -- | -- | CLI subprocess |
+| **SymRouter** | yes | yes | -- | -- | Internal gateway |
+
+## Architecture
+
+Clean/Hexagonal Architecture with ports & adapters:
+
+```
+src/forge_llm/
+├── domain/                 # Business logic, no external dependencies
+│   ├── entities/          # ChatMessage, ChatConfig, ToolDefinition
+│   ├── value_objects/     # ChatResponse, TokenUsage, ImageContent, AudioContent
+│   └── exceptions.py      # Hierarchical domain errors
+├── application/           # Use cases and orchestration
+│   ├── agents/           # ChatAgent, AsyncChatAgent
+│   ├── ports/            # ILLMProviderPort, IAsyncLLMProviderPort, IToolPort
+│   ├── session/          # ChatSession, TruncateCompactor, SummarizeCompactor
+│   └── tools/            # ToolRegistry, CallableTool
+├── infrastructure/        # External integrations
+│   ├── providers/        # OpenAI, Anthropic, xAI, Ollama, OpenRouter, CLI adapters
+│   ├── logging.py        # Structured JSON logging with structlog
+│   └── resilience.py     # Retry with exponential backoff
+└── mcp/                   # MCP Client (optional)
+    ├── tool.py           # McpTool — wraps MCP server tool as IToolPort
+    └── toolset.py        # McpToolset — connects to servers, populates ToolRegistry
+```
+
+## Provider Examples
 
 ### OpenRouter (Multi-Provider Access)
 
 ```python
 from forge_llm import ChatAgent
 
-# Access any model through OpenRouter
 agent = ChatAgent(
     provider="openrouter",
-    api_key="sk-or-...",  # OpenRouter API key
-    model="anthropic/claude-3-haiku",  # Or openai/gpt-4, meta-llama/llama-3, etc.
+    api_key="sk-or-...",
+    model="anthropic/claude-3-haiku",
 )
 
 response = agent.chat("Hello!")
@@ -239,70 +252,8 @@ response = agent.chat("Hello!")
 ```python
 from forge_llm import ChatAgent
 
-agent = ChatAgent(
-    provider="xai",
-    api_key="xai-...",
-    model="grok-3-mini-fast",
-)
-
+agent = ChatAgent(provider="xai", api_key="xai-...", model="grok-3-mini-fast")
 response = agent.chat("Hello!")
-```
-
-### Claude Code (CLI)
-
-```python
-from forge_llm import ChatAgent
-
-# Basic usage — requires `claude` CLI installed
-agent = ChatAgent(provider="claude-code", model="sonnet")
-response = agent.chat("Explain what this project does")
-print(response.content)
-
-# With working directory and yolo mode (autonomous, no permission prompts)
-agent = ChatAgent(
-    provider="claude-code",
-    model="sonnet",
-    yolo_mode=True,
-    working_dir="/home/user/my-project",
-)
-response = agent.chat("Fix the failing tests")
-
-# Streaming
-for chunk in agent.stream_chat("Refactor the main module"):
-    print(chunk.content, end="", flush=True)
-```
-
-### Codex (CLI)
-
-```python
-from forge_llm import ChatAgent
-
-# Basic usage — requires `codex` CLI installed
-agent = ChatAgent(provider="codex", model="o4-mini")
-response = agent.chat("List all TODO comments in the codebase")
-print(response.content)
-
-# With working directory and yolo mode (full-auto)
-agent = ChatAgent(
-    provider="codex",
-    model="o3",
-    yolo_mode=True,
-    working_dir="/home/user/my-project",
-)
-response = agent.chat("Add unit tests for the auth module")
-```
-
-### Custom Providers
-
-```python
-from forge_llm.infrastructure.providers.registry import get_provider_registry
-
-# Register a custom provider
-registry = get_provider_registry()
-registry.register("my_provider", MyCustomAdapter)
-
-# Use it like any built-in provider
-agent = ChatAgent(provider="my_provider", api_key="...")
 ```
 
 ### Local LLMs with Ollama
@@ -310,91 +261,76 @@ agent = ChatAgent(provider="my_provider", api_key="...")
 ```python
 from forge_llm import ChatAgent
 
-# Use local models via Ollama
-agent = ChatAgent(
-    provider="ollama",
-    model="llama3",
-    base_url="http://localhost:11434",
-)
-
+agent = ChatAgent(provider="ollama", model="llama3", base_url="http://localhost:11434")
 response = agent.chat("Write a haiku about coding")
 ```
 
-### Structured Logging
+### Claude Code (CLI)
+
+```python
+from forge_llm import ChatAgent
+
+agent = ChatAgent(provider="claude-code", model="sonnet")
+response = agent.chat("Explain what this project does")
+
+# Autonomous mode
+agent = ChatAgent(
+    provider="claude-code",
+    model="sonnet",
+    yolo_mode=True,
+    working_dir="/home/user/my-project",
+)
+response = agent.chat("Fix the failing tests")
+```
+
+### Codex (CLI)
+
+```python
+from forge_llm import ChatAgent
+
+agent = ChatAgent(provider="codex", model="o4-mini")
+response = agent.chat("List all TODO comments in the codebase")
+```
+
+### Custom Providers
+
+```python
+from forge_llm.infrastructure.providers.registry import get_provider_registry
+
+registry = get_provider_registry()
+registry.register("my_provider", MyCustomAdapter)
+
+agent = ChatAgent(provider="my_provider", api_key="...")
+```
+
+## Structured Logging
 
 ```python
 from forge_llm.infrastructure.logging import LogService, configure_logging
 
-# Configure JSON logging
 configure_logging(json_output=True, log_level="INFO")
 
 logger = LogService("my_app")
 
-# Use correlation IDs for request tracing
 with LogService.correlation_context() as correlation_id:
     logger.info("Processing request", user_id="123")
 
-    # Time operations
     with LogService.timed("llm_call", provider="openai"):
         response = agent.chat("Hello")
 ```
 
-## Supported Providers
-
-| Provider | Models | Vision | Audio | Notes |
-|----------|--------|--------|-------|-------|
-| OpenAI | gpt-4, gpt-4-turbo, gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-preview, o1-mini | ✅ | ✅ (gpt-4o-audio-preview) | Direct API |
-| Anthropic | claude-3-opus, claude-3-sonnet, claude-3-haiku, claude-3-5-sonnet | ✅ | ❌ | Direct API |
-| Ollama | llama3, mistral, codellama, and any Ollama model | ⚠️ | ❌ | Local deployment |
-| xAI | grok-4.1-fast, grok-4-fast, grok-4, grok-3-mini-fast, grok-3-fast, grok-3-mini, grok-3 | ❌ | ❌ | Direct API |
-| OpenRouter | 100+ models from OpenAI, Anthropic, Google, Meta, Mistral | ⚠️ | ⚠️ | Depends on model |
-| Claude Code | sonnet, opus, haiku | ❌ | ❌ | CLI subprocess |
-| Codex | o3, o4-mini, codex-mini | ❌ | ❌ | CLI subprocess |
-
-## Architecture
-
-ForgeLLM follows Clean/Hexagonal Architecture:
-
-```
-src/forge_llm/
-├── domain/                 # Business logic, no external dependencies
-│   ├── entities/          # ChatMessage, ChatConfig, ToolDefinition, etc.
-│   ├── value_objects/     # ChatResponse, TokenUsage, ResponseMetadata
-│   └── exceptions.py      # Domain-specific errors
-├── application/           # Use cases and orchestration
-│   ├── agents/           # ChatAgent, AsyncChatAgent
-│   ├── ports/            # Interfaces (ILLMProviderPort, IAsyncLLMProviderPort)
-│   ├── session/          # ChatSession, TruncateCompactor, SummarizeCompactor
-│   └── tools/            # ToolRegistry
-└── infrastructure/        # External integrations
-    ├── providers/        # OpenAIAdapter, AnthropicAdapter, OllamaAdapter, etc.
-    ├── logging.py        # Structured JSON logging with structlog
-    └── resilience.py     # Retry with exponential backoff
-```
-
 ## Documentation
 
-- [Quickstart](./docs/product/users/quickstart.md) - Get started in 5 minutes
-- [Providers](./docs/product/users/providers.md) - All providers: OpenAI, Anthropic, Ollama, xAI, OpenRouter, Claude Code, Codex
-- [API Reference](./docs/product/users/api-reference.md) - Complete API documentation
-- [Streaming](./docs/product/users/streaming.md) - Real-time response streaming
-- [Tools](./docs/product/users/tools.md) - Tool calling and function definitions
-- [Sessions](./docs/product/users/sessions.md) - Session management and compaction
-- [Multimodal](./docs/product/users/multimodal.md) - Images and audio input
-- [Recipes](./docs/product/users/recipes.md) - Common patterns: CLI agents, fallbacks, batch processing
-- [Error Handling](./docs/product/users/error-handling.md) - Exception handling
-- [AI Agent Discovery](./docs/product/agents/discovery.md) - Programmatic API discovery for AI agents
-
-## Examples
-
-See the `docs/product/examples/` directory for complete examples:
-
-- `basic_chat.py` - Getting started with basic chat
-- `async_chat.py` - Async/await patterns and AsyncSummarizeCompactor
-- `tool_calling.py` - Custom tool definitions
-- `openrouter_usage.py` - Multi-provider access
-- `session_compaction.py` - Context management with retry and custom prompts
-- `structured_logging.py` - Production logging setup
+- [Quickstart](./docs/product/users/quickstart.md) -- Get started in 5 minutes
+- [Providers](./docs/product/users/providers.md) -- OpenAI, Anthropic, Ollama, xAI, OpenRouter, Claude Code, Codex
+- [API Reference](./docs/product/users/api-reference.md) -- Complete API documentation
+- [Streaming](./docs/product/users/streaming.md) -- Real-time response streaming
+- [Tools](./docs/product/users/tools.md) -- Tool calling and function definitions
+- [Sessions](./docs/product/users/sessions.md) -- Session management and compaction
+- [Multimodal](./docs/product/users/multimodal.md) -- Images and audio input
+- [Recipes](./docs/product/users/recipes.md) -- CLI agents, fallbacks, batch processing
+- [Error Handling](./docs/product/users/error-handling.md) -- Exception handling
+- [AI Agent Discovery](./docs/product/agents/discovery.md) -- Programmatic API discovery
 
 ## Development
 
