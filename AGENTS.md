@@ -1,64 +1,69 @@
-# Symbiotas e Agents — Guia Rápido
+# AI Agents — Quick Guide
 
-## Sobre o repositório
+## About the Repository
 
-**SDK Python leve para interface unificada com LLMs.**
-Fornece uma API estável e consistente para qualquer provedor de LLM.
+**Lightweight Python SDK providing a unified interface for LLMs.**
+Delivers a stable, consistent API across any LLM provider.
 
-## Primeiros passos (novo projeto)
+## Architecture Defaults
 
-- Ler `process/AGENTS_PROCESS.md` para entender a orquestração do ForgeProcess.
-- Ler o estado inicial em `process/state/forgeprocess_state.yml`
-  (começa em `next_recommended_step: mdd.01.concepcao_visao`).
-- Confirmar/ajustar `current_phase`, `current_cycle` e `next_recommended_step`
-  conforme o contexto do novo produto.
-- Criar registro da sessão em `project/docs/sessions/<symbiota>/<data>-<resumo>.md`
-  quando aplicável.
-- Após concluir uma etapa importante, atualizar `forgeprocess_state.yml` e refletir
-  o estado em `process/process_execution_state.md`.
+- **Clean/Hex Architecture**: Domain is pure; adapters only via ports/usecases; never put I/O in the domain.
+- **Type Safety**: Full type hints throughout; use domain exceptions, not bare `Exception`.
+- **Plugins**: Only execute if there is a clear manifest; respect permissions.
 
-## Referências obrigatórias
+## File Structure
 
-- Orquestração e estado do processo:
-  - `process/AGENTS_PROCESS.md`
-  - `process/state/forgeprocess_state.yml`
-  - `process/process_execution_state.md`
-- Guia de agentes do ForgeBase:
-  - `docs/integrations/forgebase_guides/agentes-ia/`
-- Regras do ForgeBase (arquitetura, CLI-first, persistência):
-  - `docs/integrations/forgebase_guides/usuarios/forgebase-rules.md`
-- Prompts/manifests de cada symbiota:
-  - `process/symbiotes/<nome>/prompt.md`
-- Contexto MDD/BDD (pode ainda não existir no template):
-  - `project/docs/`, `project/specs/bdd/`, `project/specs/adr/`
+```
+src/forge_llm/
+├── __init__.py                 # Public exports
+├── application/
+│   ├── agents/
+│   │   ├── chat_agent.py       # ChatAgent (sync)
+│   │   └── async_chat_agent.py # AsyncChatAgent (async)
+│   ├── session/
+│   │   ├── chat_session.py     # ChatSession
+│   │   └── compactor.py        # TruncateCompactor, SummarizeCompactor
+│   ├── tools/
+│   │   └── registry.py         # ToolRegistry
+│   └── ports/                  # Port interfaces (ILLMProviderPort, IToolPort, etc.)
+├── mcp/
+│   ├── toolset.py              # McpToolset (MCP client)
+│   └── tool.py                 # McpTool (wraps MCP tools as IToolPort)
+├── domain/
+│   ├── entities/               # ChatMessage, ChatChunk, ToolCall, etc.
+│   ├── value_objects/          # ChatResponse, TokenUsage
+│   └── exceptions.py           # Domain exceptions
+└── infrastructure/
+    └── providers/              # Adapters per provider (OpenAI, Anthropic, Ollama, etc.)
+```
 
-## Defaults para qualquer symbiota
+## Supported Providers
 
-- Clean/Hex: domínio é puro; adapters só via ports/usecases; nunca colocar I/O no domínio.
-- CLI-first e offline: validar via CLI; evitar HTTP/TUI no MVP; sem rede externa por padrão.
-- Persistência: sessões/estados em YAML; auto-commit Git por step/fase quando habilitado.
-- Plugins: só executar se houver manifesto claro; respeitar permissões (rede=false por padrão).
-- Documentar sessões/handoffs em `project/docs/sessions/` quando aplicável.
+| Provider | Type | Models |
+|----------|------|--------|
+| OpenAI | API | gpt-4o, gpt-4o-mini |
+| Anthropic | API | claude-3-opus, claude-3-sonnet, claude-3-haiku |
+| Ollama | Local | llama2, mistral, etc. |
+| OpenRouter | API | All routed models |
+| xAI | API | grok-3-mini-fast, grok-3, grok-4 |
+| Claude Code | CLI | sonnet, opus, haiku |
+| Codex | CLI | o3, o4-mini, codex-mini |
 
-## Symbiotas de código/tests (TDD)
+## Documentation
 
-- Consultar:
-  - `docs/integrations/forgebase_guides/agentes-ia/guia-completo.md`
-  - `docs/integrations/forgebase_guides/usuarios/forgebase-rules.md`
-  - Prompts em `process/symbiotes/tdd_coder/` e `process/symbiotes/test_writer/`.
-- Seguir o fluxo BDD → TDD:
-  - Features em `project/specs/bdd/`
-  - Steps em `tests/bdd/`
-  - Código em `src/` seguindo camadas ForgeBase.
-- Usar exceções específicas e logging/métricas do ForgeBase; Rich apenas para UX em CLI.
+- [Quickstart](docs/product/users/quickstart.md)
+- [API Reference](docs/product/users/api-reference.md)
+- [Providers](docs/product/users/providers.md)
+- [Tools](docs/product/users/tools.md)
+- [MCP Client](docs/product/users/mcp.md)
+- [Sessions](docs/product/users/sessions.md)
+- [Streaming](docs/product/users/streaming.md)
+- [Error Handling](docs/product/users/error-handling.md)
+- [Recipes](docs/product/users/recipes.md)
 
-## Outros symbiotas
+## For AI Agents
 
-- Sempre ler o `prompt.md` em `process/symbiotes/<nome>/prompt.md` e aplicar as regras
-  gerais acima ao interagir com runtime/processos/artefatos.
-
-## Outras observações
-
-- Quando o usuário pedir para carregar/impersonar uma persona de symbiota ou agente,
-  responda sempre com o nome do symbiota na cor verde entre chaves, por exemplo:
-  `[bill_review] diz: Estou começando a analisar ...`.
+- [Discovery](docs/product/agents/discovery.md) — Machine-readable API overview
+- [API Summary](docs/product/agents/api-summary.md) — Condensed API reference
+- [Patterns](docs/product/agents/patterns.md) — Common implementation patterns
+- [Troubleshooting](docs/product/agents/troubleshooting.md) — Issue diagnosis and fixes

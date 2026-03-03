@@ -204,6 +204,55 @@ def divide(a: float, b: float) -> str:
 4. **Handle errors** - Return error messages instead of raising exceptions
 5. **Be specific** - "Get current weather" is better than "Get data"
 
+## MCP Tools (Remote Tool Servers)
+
+ForgeLLM can discover and use tools from MCP (Model Context Protocol) servers. `McpToolset` connects to MCP servers and loads their tools into a standard `ToolRegistry`.
+
+> **Requires:** `pip install forge-llm[mcp]`
+
+### Stdio Transport (Local Server)
+
+```python
+import asyncio
+from forge_llm import AsyncChatAgent
+from forge_llm.mcp import McpToolset
+
+async def main():
+    async with McpToolset.from_stdio("python", ["my_mcp_server.py"]) as tools:
+        # tools is a ToolRegistry with all MCP server tools
+        print("Available tools:", tools.list_tools())
+
+        agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini", tools=tools)
+        response = await agent.chat("Use the tools to answer my question")
+        print(response.content)
+
+asyncio.run(main())
+```
+
+### HTTP Transport (Remote Server)
+
+```python
+async with McpToolset.from_http("http://localhost:8000/mcp") as tools:
+    agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini", tools=tools)
+    response = await agent.chat("Query the remote data")
+```
+
+### Multiple Servers
+
+Merge tools from multiple MCP servers into one registry:
+
+```python
+async with McpToolset.from_servers([
+    {"transport": "stdio", "command": "python", "args": ["server1.py"]},
+    {"transport": "http", "url": "http://localhost:8000/mcp"},
+]) as tools:
+    agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini", tools=tools)
+```
+
+See the [MCP Client Guide](./mcp.md) for full documentation.
+
+---
+
 ## Advanced: Custom Tool Port
 
 For complex tools, implement `IToolPort`:

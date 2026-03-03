@@ -6,9 +6,10 @@ Machine-readable API reference for AI coding agents.
 
 ```python
 # IMPORTS
-from forge_llm import ChatAgent, ChatSession, ChatMessage, ChatResponse, ChatChunk
-from forge_llm import TruncateCompactor, ToolRegistry
+from forge_llm import ChatAgent, AsyncChatAgent, ChatSession, ChatMessage, ChatResponse, ChatChunk
+from forge_llm import TruncateCompactor, SummarizeCompactor, ToolRegistry
 from forge_llm.application.tools import ToolRegistry
+from forge_llm.mcp import McpToolset, McpTool  # requires pip install forge-llm[mcp]
 from forge_llm.domain import (
     ProviderNotConfiguredError, AuthenticationError, InvalidMessageError,
     RequestTimeoutError, ContextOverflowError, ToolNotFoundError
@@ -18,6 +19,10 @@ from forge_llm.domain import (
 agent = ChatAgent(provider="openai", model="gpt-4o-mini")
 response = agent.chat("message")  # Returns ChatResponse
 content = response.content        # String content
+
+# ASYNC CHAT
+agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini")
+response = await agent.chat("message")  # Returns ChatResponse
 
 # STREAMING
 for chunk in agent.stream_chat("message"):
@@ -35,6 +40,11 @@ def func(arg: str) -> str:
     """Docstring."""
     return result
 agent = ChatAgent(provider="openai", model="gpt-4o-mini", tools=registry)
+
+# MCP TOOLS (async context manager)
+async with McpToolset.from_stdio("python", ["server.py"]) as tools:
+    agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini", tools=tools)
+    response = await agent.chat("Use the tools")
 ```
 
 ## ChatAgent
@@ -60,6 +70,42 @@ ChatAgent(
 | `stream_chat` | `(messages, session?, auto_execute_tools?)` | `Generator[ChatChunk]` |
 | `execute_tool_calls` | `(tool_calls)` | `list[ToolResult]` |
 | `get_tool_definitions` | `()` | `list[ToolDefinition]` |
+
+## AsyncChatAgent
+
+Same API as ChatAgent but async. Use with `await` and `async for`.
+
+### Constructor
+
+```python
+AsyncChatAgent(
+    provider: str,
+    api_key: str | None,
+    model: str | None,
+    tools: ToolRegistry | None,
+    **kwargs,
+)
+```
+
+### Methods
+
+| Method | Signature | Returns |
+|--------|-----------|---------|
+| `chat` | `async (messages, session?, auto_execute_tools?)` | `ChatResponse` |
+| `stream_chat` | `async (messages, session?, auto_execute_tools?)` | `AsyncGenerator[ChatChunk]` |
+| `execute_tool_calls` | `(tool_calls)` | `list[ToolResult]` |
+
+## McpToolset
+
+Connect to MCP servers and load tools. Requires `pip install forge-llm[mcp]`.
+
+### Class Methods (async context managers)
+
+| Method | Parameters | Yields |
+|--------|-----------|--------|
+| `from_stdio` | `(command, args?, env?)` | `ToolRegistry` |
+| `from_http` | `(url, headers?)` | `ToolRegistry` |
+| `from_servers` | `(servers)` | `ToolRegistry` |
 
 ## ChatSession
 
@@ -168,19 +214,21 @@ registry.execute(call: ToolCall) -> ToolResult
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 OPENROUTER_API_KEY=sk-or-...
+XAI_API_KEY=xai-...
 ```
 
 ## Providers
 
-| Provider | Models |
-|----------|--------|
-| `openai` | gpt-4o, gpt-4o-mini, gpt-4-turbo |
-| `anthropic` | claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307 |
-| `ollama` | llama2, mistral, codellama (local) |
-| `openrouter` | provider/model format |
-| `xai` | grok-3-mini-fast, grok-3, grok-4 |
-| `claude-code` | sonnet, opus, haiku (CLI) |
-| `codex` | o3, o4-mini, codex-mini (CLI) |
+| Provider | Models | Notes |
+|----------|--------|-------|
+| `openai` | gpt-4o, gpt-4o-mini, gpt-4-turbo | API |
+| `anthropic` | claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307 | API |
+| `ollama` | llama2, mistral, codellama | Local |
+| `openrouter` | provider/model format | API |
+| `xai` | grok-3-mini-fast, grok-3, grok-4 | API |
+| `claude-code` | sonnet, opus, haiku | CLI, requires `claude` |
+| `codex` | o3, o4-mini, codex-mini | CLI, requires `codex` |
+| `symrouter` | (routes to other providers) | Internal routing |
 
 ## Patterns
 
@@ -212,6 +260,13 @@ agent = ChatAgent(provider="openai", model="gpt-4o-mini", tools=registry)
 ```python
 agent = ChatAgent(provider="claude-code", model="sonnet", yolo_mode=True, working_dir="/path/to/project")
 response = agent.chat("Fix the failing tests")
+```
+
+### MCP Tools
+```python
+async with McpToolset.from_stdio("python", ["server.py"]) as tools:
+    agent = AsyncChatAgent(provider="openai", model="gpt-4o-mini", tools=tools)
+    response = await agent.chat("Use the tools")
 ```
 
 ### Error Handling

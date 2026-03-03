@@ -442,6 +442,88 @@ response = agent.chat("Translate 'Hello, how are you?' to Spanish")
 print(response.content)
 ```
 
+## MCP Server Integration
+
+Connect to an MCP server and use its tools with an async agent:
+
+```python
+import asyncio
+from forge_llm import AsyncChatAgent
+from forge_llm.mcp import McpToolset
+
+async def mcp_agent(task: str) -> str:
+    """Run a task using tools from an MCP server."""
+    async with McpToolset.from_stdio("python", ["my_mcp_server.py"]) as tools:
+        agent = AsyncChatAgent(
+            provider="openai",
+            model="gpt-4o-mini",
+            tools=tools,
+        )
+        response = await agent.chat(task)
+        return response.content
+
+# Usage
+result = asyncio.run(mcp_agent("What tools are available? Use them."))
+print(result)
+```
+
+### Multi-Server Merge
+
+Combine tools from multiple MCP servers into a single agent:
+
+```python
+import asyncio
+from forge_llm import AsyncChatAgent
+from forge_llm.mcp import McpToolset
+
+async def multi_server_agent(task: str) -> str:
+    """Agent with tools from multiple MCP servers."""
+    async with McpToolset.from_servers([
+        {"transport": "stdio", "command": "python", "args": ["weather_server.py"]},
+        {"transport": "http", "url": "http://localhost:8000/mcp"},
+    ]) as tools:
+        agent = AsyncChatAgent(
+            provider="openai",
+            model="gpt-4o-mini",
+            tools=tools,
+        )
+        response = await agent.chat(task)
+        return response.content
+
+result = asyncio.run(multi_server_agent("Get weather in Paris and query the database"))
+print(result)
+```
+
+### Async MCP with Session
+
+Use MCP tools with conversation history:
+
+```python
+import asyncio
+from forge_llm import AsyncChatAgent, ChatSession
+from forge_llm.mcp import McpToolset
+
+async def mcp_conversation():
+    async with McpToolset.from_stdio("python", ["server.py"]) as tools:
+        agent = AsyncChatAgent(
+            provider="openai",
+            model="gpt-4o-mini",
+            tools=tools,
+        )
+        session = ChatSession(
+            system_prompt="You are a helpful assistant with access to external tools.",
+            max_tokens=4000,
+        )
+
+        r1 = await agent.chat("What tools do you have?", session=session)
+        print(r1.content)
+
+        r2 = await agent.chat("Use one of them", session=session)
+        print(r2.content)
+
+asyncio.run(mcp_conversation())
+```
+
 ## Custom System Prompts by Task
 
 ```python

@@ -6,7 +6,7 @@ Complete API documentation for ForgeLLM.
 
 ### ChatAgent
 
-Main agent for chat interactions with LLMs.
+Main agent for synchronous chat interactions with LLMs.
 
 ```python
 from forge_llm import ChatAgent
@@ -16,10 +16,12 @@ from forge_llm import ChatAgent
 
 ```python
 ChatAgent(
-    provider: str,              # "openai", "anthropic", "ollama", "openrouter"
+    provider: str,              # "openai", "anthropic", "ollama", "openrouter", "xai", "claude-code", "codex"
     api_key: str | None = None, # API key (auto-loaded from env if None)
     model: str | None = None,   # Model name (e.g., "gpt-4o-mini")
     tools: ToolRegistry | list[ToolDefinition] | None = None,
+    yolo_mode: bool = False,    # CLI only: autonomous execution
+    working_dir: str | None = None,  # CLI only: working directory
     **kwargs                    # Additional provider config
 )
 ```
@@ -276,6 +278,153 @@ TruncateCompactor(keep_system: bool = True)
 
 ---
 
+### AsyncChatAgent
+
+Async agent for chat interactions with LLMs. Same API as `ChatAgent` but with `async`/`await`.
+
+```python
+from forge_llm import AsyncChatAgent
+```
+
+#### Constructor
+
+```python
+AsyncChatAgent(
+    provider: str,              # "openai", "anthropic", "ollama", "openrouter", "xai"
+    api_key: str | None = None, # API key (auto-loaded from env if None)
+    model: str | None = None,   # Model name
+    tools: ToolRegistry | list[ToolDefinition] | None = None,
+    **kwargs                    # Additional provider config
+)
+```
+
+#### Methods
+
+##### `chat()` (async)
+
+```python
+async def chat(
+    messages: str | list[ChatMessage] | None = None,
+    config: ChatConfig | None = None,
+    session: ChatSession | None = None,
+    auto_execute_tools: bool = True,
+) -> ChatResponse
+```
+
+##### `stream_chat()` (async generator)
+
+```python
+async def stream_chat(
+    messages: str | list[ChatMessage] | None = None,
+    config: ChatConfig | None = None,
+    session: ChatSession | None = None,
+    auto_execute_tools: bool = True,
+) -> AsyncGenerator[ChatChunk, None]
+```
+
+##### `execute_tool_calls()`
+
+```python
+def execute_tool_calls(tool_calls: list[ToolCall]) -> list[ToolResult]
+```
+
+---
+
+### McpToolset
+
+Connect to MCP servers and load their tools into a `ToolRegistry`. Requires `pip install forge-llm[mcp]`.
+
+```python
+from forge_llm.mcp import McpToolset
+```
+
+#### Class Methods (async context managers)
+
+##### `from_stdio()`
+
+Connect to a local MCP server via stdio transport.
+
+```python
+@classmethod
+@asynccontextmanager
+async def from_stdio(
+    cls,
+    command: str,                      # Command to run (e.g., "python")
+    args: list[str] | None = None,     # Arguments (e.g., ["server.py"])
+    env: dict[str, str] | None = None, # Environment variables
+) -> AsyncGenerator[ToolRegistry, None]
+```
+
+##### `from_http()`
+
+Connect to a remote MCP server via Streamable HTTP.
+
+```python
+@classmethod
+@asynccontextmanager
+async def from_http(
+    cls,
+    url: str,                              # Server URL
+    headers: dict[str, str] | None = None, # HTTP headers
+) -> AsyncGenerator[ToolRegistry, None]
+```
+
+##### `from_servers()`
+
+Connect to multiple MCP servers and merge tools into one registry.
+
+```python
+@classmethod
+@asynccontextmanager
+async def from_servers(
+    cls,
+    servers: list[dict[str, Any]],  # List of server configs
+) -> AsyncGenerator[ToolRegistry, None]
+```
+
+**Server config format:**
+```python
+# Stdio server
+{"transport": "stdio", "command": "python", "args": ["server.py"], "env": {...}}
+
+# HTTP server
+{"transport": "http", "url": "http://localhost:8000/mcp", "headers": {...}}
+```
+
+---
+
+### McpTool
+
+Wraps a single MCP server tool as an `IToolPort`. Typically created by `McpToolset`, not directly.
+
+```python
+from forge_llm.mcp import McpTool
+```
+
+#### Properties
+
+- `definition: ToolDefinition` — Tool name, description, and parameter schema
+
+#### Methods
+
+##### `execute()`
+
+Execute the tool synchronously (bridges to async MCP session).
+
+```python
+def execute(call: ToolCall) -> ToolResult
+```
+
+##### `execute_async()`
+
+Execute the tool asynchronously (for callers with an event loop).
+
+```python
+async def execute_async(call: ToolCall) -> ToolResult
+```
+
+---
+
 ## Exceptions
 
 All exceptions inherit from `ForgeLLMError`.
@@ -312,6 +461,7 @@ from forge_llm.domain import (
 ```python
 from forge_llm import (
     ChatAgent,
+    AsyncChatAgent,
     ChatMessage,
     ChatResponse,
     ChatChunk,
@@ -323,5 +473,11 @@ from forge_llm import (
     ToolDefinition,
     ToolCall,
     ToolResult,
+    TruncateCompactor,
+    SummarizeCompactor,
+    AsyncSummarizeCompactor,
 )
+
+# MCP (requires pip install forge-llm[mcp])
+from forge_llm.mcp import McpToolset, McpTool
 ```

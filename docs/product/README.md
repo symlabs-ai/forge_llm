@@ -1,6 +1,6 @@
 # ForgeLLM Documentation
 
-ForgeLLM is a unified LLM client library providing provider portability across OpenAI, Anthropic, Ollama, and OpenRouter.
+ForgeLLM is a unified LLM client library providing provider portability across OpenAI, Anthropic, Ollama, OpenRouter, xAI, Claude Code, and Codex.
 
 ## Documentation Structure
 
@@ -13,6 +13,7 @@ ForgeLLM is a unified LLM client library providing provider portability across O
 | [Providers](./users/providers.md) | Provider-specific configuration |
 | [Multimodal](./users/multimodal.md) | Images and audio input |
 | [Tools](./users/tools.md) | Tool calling and function execution |
+| [MCP Client](./users/mcp.md) | Connect to MCP tool servers |
 | [Sessions](./users/sessions.md) | Conversation management |
 | [Streaming](./users/streaming.md) | Streaming responses |
 | [Error Handling](./users/error-handling.md) | Exception handling guide |
@@ -44,24 +45,35 @@ print(response.content)
 
 ```bash
 pip install forge-llm
+
+# With MCP support
+pip install forge-llm[mcp]
 ```
 
 ## Supported Providers
 
 | Provider | Models | Status |
 |----------|--------|--------|
-| OpenAI | gpt-4o, gpt-4o-mini, gpt-4-turbo | ✅ Full support |
-| Anthropic | claude-3-opus, claude-3-sonnet, claude-3-haiku | ✅ Full support |
-| Ollama | All local models | ✅ Full support |
-| OpenRouter | All routed models | ✅ Full support |
+| OpenAI | gpt-4o, gpt-4o-mini, gpt-4-turbo | Full support |
+| Anthropic | claude-3-opus, claude-3-sonnet, claude-3-haiku | Full support |
+| Ollama | All local models | Full support |
+| OpenRouter | All routed models | Full support |
+| xAI | grok-3-mini-fast, grok-3, grok-4 | Full support |
+| Claude Code | sonnet, opus, haiku (CLI) | Full support |
+| Codex | o3, o4-mini, codex-mini (CLI) | Full support |
+| SymRouter | Internal routing | Full support |
 
 ## Key Features
 
 - **Provider Portability**: Same code works with any provider
+- **Async Support**: `AsyncChatAgent` with full async/await API
+- **MCP Client**: Connect to MCP tool servers via stdio or HTTP
+- **CLI Coding Agents**: Use Claude Code and Codex as autonomous agents
 - **Multimodal**: Send images (URL/Base64) and audio (WAV/MP3) to compatible models
 - **Tool Calling**: Register Python functions as LLM tools
 - **Session Management**: Automatic conversation history with compaction
 - **Streaming**: Real-time response streaming
+- **Plugin Architecture**: Extensible provider and tool system
 - **Type Safety**: Full type hints throughout
 
 ## Environment Variables
@@ -70,4 +82,5 @@ pip install forge-llm
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 OPENROUTER_API_KEY=sk-or-...
+XAI_API_KEY=xai-...
 ```

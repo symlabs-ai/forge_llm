@@ -47,7 +47,7 @@ agent = ChatAgent(provider="openai", model="gpt-4o-mini")
 **Solution:** Use supported providers:
 ```python
 # Supported providers
-providers = ["openai", "anthropic", "ollama", "openrouter"]
+providers = ["openai", "anthropic", "ollama", "openrouter", "xai", "claude-code", "codex"]
 
 agent = ChatAgent(provider="openai", model="gpt-4o-mini")
 ```
@@ -172,24 +172,6 @@ for chunk in agent.stream_chat("Hello"):
 print()  # Final newline
 ```
 
-## Problem: Wrong Model for Provider
-
-**Symptom:** Model not found error.
-
-**Cause:** Using wrong model name for provider.
-
-**Solution:**
-```python
-# OpenAI models
-agent = ChatAgent(provider="openai", model="gpt-4o-mini")
-
-# Anthropic models
-agent = ChatAgent(provider="anthropic", model="claude-3-haiku-20240307")
-
-# Ollama models (must be installed)
-agent = ChatAgent(provider="ollama", model="llama2")
-```
-
 ## Problem: Import Errors
 
 **Symptom:** `ModuleNotFoundError: No module named 'forge_llm'`
@@ -289,6 +271,80 @@ def test_provider(provider: str, model: str) -> bool:
 # Test each provider
 test_provider("openai", "gpt-4o-mini")
 test_provider("anthropic", "claude-3-haiku-20240307")
+```
+
+## Problem: MCP ImportError
+
+**Symptom:** `ImportError: MCP support requires the 'mcp' package`
+
+**Cause:** Optional MCP dependency not installed.
+
+**Solution:**
+```bash
+pip install forge-llm[mcp]
+```
+
+## Problem: MCP Server Connection Failed
+
+**Symptom:** Connection error when using `McpToolset.from_stdio()` or `McpToolset.from_http()`.
+
+**Causes:**
+1. Server command not found or not installed
+2. Server URL unreachable
+3. Server crashed during initialization
+
+**Solution:**
+```python
+# Verify the MCP server works standalone first
+# For stdio:
+import subprocess
+result = subprocess.run(["python", "my_server.py", "--help"], capture_output=True)
+print(result.stdout.decode())
+
+# For HTTP: check the URL is reachable
+import urllib.request
+urllib.request.urlopen("http://localhost:8000/mcp")
+```
+
+## Problem: MCP Tools Not Appearing
+
+**Symptom:** `tools.list_tools()` returns empty list.
+
+**Cause:** Server doesn't expose any tools, or initialization failed silently.
+
+**Solution:**
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+async with McpToolset.from_stdio("python", ["server.py"]) as tools:
+    print("Tools found:", tools.list_tools())
+    # Check debug logs for registration messages
+```
+
+## Problem: Wrong Model for Provider
+
+**Symptom:** Model not found error.
+
+**Cause:** Using wrong model name for provider.
+
+**Solution:**
+```python
+# OpenAI models
+agent = ChatAgent(provider="openai", model="gpt-4o-mini")
+
+# Anthropic models
+agent = ChatAgent(provider="anthropic", model="claude-3-haiku-20240307")
+
+# Ollama models (must be installed)
+agent = ChatAgent(provider="ollama", model="llama2")
+
+# xAI models
+agent = ChatAgent(provider="xai", model="grok-3-mini-fast")
+
+# CLI agents
+agent = ChatAgent(provider="claude-code", model="sonnet")
+agent = ChatAgent(provider="codex", model="o4-mini")
 ```
 
 ## Getting Help
