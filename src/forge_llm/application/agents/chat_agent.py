@@ -365,7 +365,7 @@ class ChatAgent:
                 # Add assistant message with tool calls to message list
                 assistant_msg = ChatMessage(
                     role="assistant",
-                    content=full_content if full_content else None,
+                    content=full_content or "",
                     tool_calls=tool_calls_data,
                 )
                 msg_list.append(assistant_msg)
