@@ -7,12 +7,14 @@ Exports:
     - OllamaAdapter: Adapter for Ollama local LLMs
     - OpenRouterAdapter: Adapter for OpenRouter unified API
     - XAIAdapter: Adapter for xAI (Grok) API
+    - GroqAdapter: Adapter for Groq API
     - SymRouterAdapter: Adapter for Sym Router Gateway
     - ClaudeCodeAdapter: Adapter for Claude Code CLI
     - CodexAdapter: Adapter for OpenAI Codex CLI
     - AsyncOpenAIAdapter: Async adapter for OpenAI API
     - AsyncAnthropicAdapter: Async adapter for Anthropic API
     - AsyncXAIAdapter: Async adapter for xAI (Grok) API
+    - AsyncGroqAdapter: Async adapter for Groq API
     - AsyncOllamaAdapter: Async adapter for Ollama local LLMs
     - AsyncOpenRouterAdapter: Async adapter for OpenRouter unified API
     - AsyncSymRouterAdapter: Async adapter for Sym Router Gateway
@@ -32,6 +34,7 @@ from forge_llm.infrastructure.providers.async_symrouter_adapter import (
     AsyncSymRouterAdapter,
 )
 from forge_llm.infrastructure.providers.async_xai_adapter import AsyncXAIAdapter
+from forge_llm.infrastructure.providers.async_groq_adapter import AsyncGroqAdapter
 from forge_llm.infrastructure.providers.claude_code_adapter import ClaudeCodeAdapter
 from forge_llm.infrastructure.providers.codex_adapter import CodexAdapter
 from forge_llm.infrastructure.providers.ollama_adapter import OllamaAdapter
@@ -47,6 +50,7 @@ from forge_llm.infrastructure.providers.registry import (
     reset_provider_registry,
 )
 from forge_llm.infrastructure.providers.symrouter_adapter import SymRouterAdapter
+from forge_llm.infrastructure.providers.groq_adapter import GroqAdapter
 from forge_llm.infrastructure.providers.xai_adapter import XAIAdapter
 
 __all__ = [
@@ -59,12 +63,14 @@ __all__ = [
     "OllamaAdapter",
     "OpenRouterAdapter",
     "XAIAdapter",
+    "GroqAdapter",
     "SymRouterAdapter",
     "ClaudeCodeAdapter",
     "CodexAdapter",
     "AsyncOpenAIAdapter",
     "AsyncAnthropicAdapter",
     "AsyncXAIAdapter",
+    "AsyncGroqAdapter",
     "AsyncOllamaAdapter",
     "AsyncOpenRouterAdapter",
     "AsyncSymRouterAdapter",

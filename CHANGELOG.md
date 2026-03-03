@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Groq provider** - Full support for Groq chat completions
+  - Sync and async adapters (`GroqAdapter`, `AsyncGroqAdapter`)
+  - Streaming with tool call support
+  - Default model: `llama-3.3-70b-versatile`
+  - OpenAI-compatible API via `https://api.groq.com/openai/v1`
+  - 28 unit tests (sync + async)
+
 ## [0.7.1] - 2026-02-18
 
 ### Added

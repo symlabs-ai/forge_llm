@@ -1,16 +1,16 @@
 # ForgeLLM
 
-[![Tests](https://img.shields.io/badge/tests-810%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-848%20passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
-[![Version](https://img.shields.io/badge/version-0.7.4-blue)]()
+[![Version](https://img.shields.io/badge/version-0.7.5-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)]()
 
 Unified LLM client with provider portability. Write once, run on any provider.
 
 ## Features
 
-- **Provider Portability** -- Same code works with OpenAI, Anthropic, xAI (Grok), Ollama, OpenRouter, Claude Code CLI, and Codex CLI
+- **Provider Portability** -- Same code works with OpenAI, Anthropic, xAI (Grok), Groq, Ollama, OpenRouter, Claude Code CLI, and Codex CLI
 - **MCP Client** -- Connect to any [Model Context Protocol](https://modelcontextprotocol.io/) server and use its tools automatically
 - **CLI Coding Agents** -- Run Claude Code and OpenAI Codex as providers via subprocess
 - **Plugin Architecture** -- Register custom providers via `ProviderRegistry`
@@ -201,6 +201,7 @@ response = agent.chat([msg])
 | **OpenAI** | yes | yes | yes | yes | Direct API + Responses API auto-detection |
 | **Anthropic** | yes | yes | yes | -- | Direct API |
 | **xAI (Grok)** | yes | yes | -- | -- | OpenAI-compatible API |
+| **Groq** | yes | yes | -- | -- | OpenAI-compatible API, ultra-fast inference |
 | **Ollama** | yes | yes | -- | -- | Local models |
 | **OpenRouter** | yes | yes | * | * | 100+ models, depends on underlying model |
 | **Claude Code** | yes | -- | -- | -- | CLI subprocess |
@@ -223,7 +224,7 @@ src/forge_llm/
 │   ├── session/          # ChatSession, TruncateCompactor, SummarizeCompactor
 │   └── tools/            # ToolRegistry, CallableTool
 ├── infrastructure/        # External integrations
-│   ├── providers/        # OpenAI, Anthropic, xAI, Ollama, OpenRouter, CLI adapters
+│   ├── providers/        # OpenAI, Anthropic, xAI, Groq, Ollama, OpenRouter, CLI adapters
 │   ├── logging.py        # Structured JSON logging with structlog
 │   └── resilience.py     # Retry with exponential backoff
 └── mcp/                   # MCP Client (optional)
@@ -253,6 +254,15 @@ response = agent.chat("Hello!")
 from forge_llm import ChatAgent
 
 agent = ChatAgent(provider="xai", api_key="xai-...", model="grok-3-mini-fast")
+response = agent.chat("Hello!")
+```
+
+### Groq
+
+```python
+from forge_llm import ChatAgent
+
+agent = ChatAgent(provider="groq", api_key="gsk_...", model="llama-3.3-70b-versatile")
 response = agent.chat("Hello!")
 ```
 
@@ -322,7 +332,7 @@ with LogService.correlation_context() as correlation_id:
 ## Documentation
 
 - [Quickstart](./docs/product/users/quickstart.md) -- Get started in 5 minutes
-- [Providers](./docs/product/users/providers.md) -- OpenAI, Anthropic, Ollama, xAI, OpenRouter, Claude Code, Codex
+- [Providers](./docs/product/users/providers.md) -- OpenAI, Anthropic, Ollama, xAI, Groq, OpenRouter, Claude Code, Codex
 - [API Reference](./docs/product/users/api-reference.md) -- Complete API documentation
 - [Streaming](./docs/product/users/streaming.md) -- Real-time response streaming
 - [Tools](./docs/product/users/tools.md) -- Tool calling and function definitions

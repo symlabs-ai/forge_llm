@@ -397,6 +397,20 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         is_local=True,
     )
 
+    _groq_meta = ProviderMetadata(
+        known_models=[
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "llama3-70b-8192",
+            "llama3-8b-8192",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "meta-llama/llama-4-maverick-17b-128e-instruct",
+        ],
+        default_base_url="https://api.groq.com/openai/v1",
+    )
+
     _symrouter_meta = ProviderMetadata(
         known_models=[],  # Models are dynamic, configured in the gateway
         default_base_url="http://localhost:8000",
@@ -425,6 +439,10 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         from forge_llm.infrastructure.providers import XAIAdapter
         return XAIAdapter(config)
 
+    def _groq_factory(config: ProviderConfig) -> ILLMProviderPort:
+        from forge_llm.infrastructure.providers.groq_adapter import GroqAdapter
+        return GroqAdapter(config)
+
     def _claude_code_factory(config: ProviderConfig) -> ILLMProviderPort:
         from forge_llm.infrastructure.providers.claude_code_adapter import (
             ClaudeCodeAdapter,
@@ -446,6 +464,10 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     def _async_xai_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
         from forge_llm.infrastructure.providers import AsyncXAIAdapter
         return AsyncXAIAdapter(config)
+
+    def _async_groq_factory(config: ProviderConfig) -> IAsyncLLMProviderPort:
+        from forge_llm.infrastructure.providers.async_groq_adapter import AsyncGroqAdapter
+        return AsyncGroqAdapter(config)
 
     def _symrouter_factory(config: ProviderConfig) -> ILLMProviderPort:
         from forge_llm.infrastructure.providers.symrouter_adapter import (
@@ -477,6 +499,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register("ollama", _ollama_factory, _ollama_meta)
     registry.register("openrouter", _openrouter_factory, _openrouter_meta)
     registry.register("xai", _xai_factory, _xai_meta)
+    registry.register("groq", _groq_factory, _groq_meta)
     registry.register("claude-code", _claude_code_factory, _claude_code_meta)
     registry.register("codex", _codex_factory, _codex_meta)
     registry.register("symrouter", _symrouter_factory, _symrouter_meta)
@@ -485,6 +508,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register_async("openai", _async_openai_factory)
     registry.register_async("anthropic", _async_anthropic_factory)
     registry.register_async("xai", _async_xai_factory)
+    registry.register_async("groq", _async_groq_factory)
     registry.register_async("ollama", _async_ollama_factory)
     registry.register_async("openrouter", _async_openrouter_factory)
     registry.register_async("symrouter", _async_symrouter_factory)
