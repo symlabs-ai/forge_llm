@@ -301,9 +301,346 @@ class TestOllamaProviderContract:
         result = adapter.send([{"role": "user", "content": "Hi"}])
 
         # Same keys as OpenAI/Anthropic adapters
-        expected_keys = {"content", "role", "model", "provider", "usage"}
+        expected_keys = {"content", "role", "model", "provider", "usage", "finish_reason"}
         assert set(result.keys()) == expected_keys
 
         # Usage has same structure
         usage_keys = {"prompt_tokens", "completion_tokens", "total_tokens"}
         assert set(result["usage"].keys()) == usage_keys
+
+
+class TestOllamaSendToolCalls:
+    """Tests for tool calling in Ollama send method."""
+
+    @patch("httpx.Client")
+    def test_send_passes_tools_in_payload(self, mock_client_class):
+        """send() includes tools in payload when provided in config."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "model": "llama3.1",
+            "message": {"role": "assistant", "content": "OK"},
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string"},
+                        },
+                        "required": ["location"],
+                    },
+                },
+            }
+        ]
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        adapter.send(
+            [{"role": "user", "content": "Weather?"}],
+            config={"tools": tools},
+        )
+
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs["json"]
+        assert "tools" in payload
+        assert payload["tools"] == tools
+
+    @patch("httpx.Client")
+    def test_send_does_not_include_tools_when_absent(self, mock_client_class):
+        """send() does not include tools in payload when not provided."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "model": "llama2",
+            "message": {"role": "assistant", "content": "Hello"},
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama2")
+        adapter = OllamaAdapter(config)
+        adapter.send([{"role": "user", "content": "Hi"}])
+
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs["json"]
+        assert "tools" not in payload
+
+    @patch("httpx.Client")
+    def test_send_returns_tool_calls_when_present(self, mock_client_class):
+        """send() returns tool_calls and finish_reason when model calls tools."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "model": "llama3.1",
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_abc123",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"location": "London"}',
+                        },
+                    }
+                ],
+            },
+            "prompt_eval_count": 20,
+            "eval_count": 10,
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        result = adapter.send(
+            [{"role": "user", "content": "Weather in London?"}],
+            config={"tools": [{"type": "function", "function": {"name": "get_weather"}}]},
+        )
+
+        assert "tool_calls" in result
+        assert len(result["tool_calls"]) == 1
+        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert result["tool_calls"][0]["function"]["arguments"] == '{"location": "London"}'
+        assert result["finish_reason"] == "tool_calls"
+
+    @patch("httpx.Client")
+    def test_send_returns_stop_finish_reason_without_tools(self, mock_client_class):
+        """send() returns finish_reason='stop' when no tool calls."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "model": "llama2",
+            "message": {"role": "assistant", "content": "Hello!"},
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama2")
+        adapter = OllamaAdapter(config)
+        result = adapter.send([{"role": "user", "content": "Hi"}])
+
+        assert result["finish_reason"] == "stop"
+        assert "tool_calls" not in result
+
+    @patch("httpx.Client")
+    def test_send_returns_multiple_tool_calls(self, mock_client_class):
+        """send() returns multiple tool_calls when model calls several tools."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "model": "llama3.1",
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"location": "London"}',
+                        },
+                    },
+                    {
+                        "id": "call_2",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"location": "Paris"}',
+                        },
+                    },
+                ],
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        result = adapter.send(
+            [{"role": "user", "content": "Weather in London and Paris?"}],
+            config={"tools": [{"type": "function", "function": {"name": "get_weather"}}]},
+        )
+
+        assert len(result["tool_calls"]) == 2
+        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert result["tool_calls"][1]["function"]["name"] == "get_weather"
+        assert result["finish_reason"] == "tool_calls"
+
+
+class TestOllamaStreamToolCalls:
+    """Tests for tool calling in Ollama stream method."""
+
+    @patch("httpx.Client")
+    def test_stream_passes_tools_in_payload(self, mock_client_class):
+        """stream() includes tools in payload when provided in config."""
+        lines = [
+            '{"message": {"content": "OK"}, "done": false}',
+            '{"message": {"content": ""}, "done": true}',
+        ]
+
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter(lines)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = MagicMock(return_value=mock_response)
+        mock_stream.__exit__ = MagicMock(return_value=False)
+
+        mock_client = MagicMock()
+        mock_client.stream.return_value = mock_stream
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        tools = [{"type": "function", "function": {"name": "test_tool"}}]
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        list(adapter.stream(
+            [{"role": "user", "content": "Hi"}],
+            config={"tools": tools},
+        ))
+
+        call_args = mock_client.stream.call_args
+        payload = call_args.kwargs["json"]
+        assert "tools" in payload
+        assert payload["tools"] == tools
+
+    @patch("httpx.Client")
+    def test_stream_yields_tool_calls_on_done(self, mock_client_class):
+        """stream() yields tool_calls in final chunk when done=True."""
+        lines = [
+            '{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"location\\": \\"London\\"}"}}]}, "done": false}',
+            '{"message": {"content": ""}, "done": true}',
+        ]
+
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter(lines)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = MagicMock(return_value=mock_response)
+        mock_stream.__exit__ = MagicMock(return_value=False)
+
+        mock_client = MagicMock()
+        mock_client.stream.return_value = mock_stream
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        chunks = list(adapter.stream(
+            [{"role": "user", "content": "Weather?"}],
+            config={"tools": [{"type": "function", "function": {"name": "get_weather"}}]},
+        ))
+
+        tool_chunk = next((c for c in chunks if c.get("tool_calls")), None)
+        assert tool_chunk is not None
+        assert tool_chunk["finish_reason"] == "tool_calls"
+        assert len(tool_chunk["tool_calls"]) == 1
+        assert tool_chunk["tool_calls"][0]["function"]["name"] == "get_weather"
+
+    @patch("httpx.Client")
+    def test_stream_yields_stop_finish_reason_without_tools(self, mock_client_class):
+        """stream() yields finish_reason='stop' when no tool calls on done."""
+        lines = [
+            '{"message": {"content": "Hello"}, "done": false}',
+            '{"message": {"content": " World"}, "done": false}',
+            '{"message": {"content": ""}, "done": true}',
+        ]
+
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter(lines)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = MagicMock(return_value=mock_response)
+        mock_stream.__exit__ = MagicMock(return_value=False)
+
+        mock_client = MagicMock()
+        mock_client.stream.return_value = mock_stream
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama2")
+        adapter = OllamaAdapter(config)
+        chunks = list(adapter.stream([{"role": "user", "content": "Hi"}]))
+
+        content_chunks = [c for c in chunks if c.get("content")]
+        assert len(content_chunks) == 2
+        assert content_chunks[0]["content"] == "Hello"
+        assert content_chunks[1]["content"] == " World"
+
+        finish_chunk = next((c for c in chunks if c.get("finish_reason")), None)
+        assert finish_chunk is not None
+        assert finish_chunk["finish_reason"] == "stop"
+
+    @patch("httpx.Client")
+    def test_stream_accumulates_tool_calls_across_chunks(self, mock_client_class):
+        """stream() accumulates tool_calls from multiple chunks."""
+        lines = [
+            '{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"location\\": \\"London\\"}"}}]}, "done": false}',
+            '{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"location\\": \\"Paris\\"}"}}]}, "done": false}',
+            '{"message": {"content": ""}, "done": true}',
+        ]
+
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter(lines)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = MagicMock(return_value=mock_response)
+        mock_stream.__exit__ = MagicMock(return_value=False)
+
+        mock_client = MagicMock()
+        mock_client.stream.return_value = mock_stream
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        config = ProviderConfig(provider="ollama", model="llama3.1")
+        adapter = OllamaAdapter(config)
+        chunks = list(adapter.stream(
+            [{"role": "user", "content": "Weather in London and Paris?"}],
+            config={"tools": [{"type": "function", "function": {"name": "get_weather"}}]},
+        ))
+
+        tool_chunk = next((c for c in chunks if c.get("tool_calls")), None)
+        assert tool_chunk is not None
+        assert len(tool_chunk["tool_calls"]) == 2
+        assert tool_chunk["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert tool_chunk["tool_calls"][1]["function"]["name"] == "get_weather"
+        assert tool_chunk["finish_reason"] == "tool_calls"

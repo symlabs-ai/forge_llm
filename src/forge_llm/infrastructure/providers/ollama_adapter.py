@@ -135,6 +135,7 @@ class OllamaAdapter:
         """
         model = (config or {}).get("model") or self._config.model or "llama2"
         timeout = (config or {}).get("timeout") or self._config.timeout or 120.0
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Sending request to Ollama",
@@ -142,11 +143,13 @@ class OllamaAdapter:
             message_count=len(messages),
         )
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": False,
         }
+        if tools:
+            payload["tools"] = tools
 
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
@@ -157,7 +160,7 @@ class OllamaAdapter:
             data = response.json()
 
         message = data.get("message", {})
-        return {
+        result: dict[str, Any] = {
             "content": message.get("content", ""),
             "role": message.get("role", "assistant"),
             "model": data.get("model", model),
@@ -170,6 +173,15 @@ class OllamaAdapter:
                 ),
             },
         }
+
+        # Include tool calls if present
+        if message.get("tool_calls"):
+            result["tool_calls"] = message["tool_calls"]
+            result["finish_reason"] = "tool_calls"
+        else:
+            result["finish_reason"] = "stop"
+
+        return result
 
     def stream(
         self,
@@ -188,6 +200,7 @@ class OllamaAdapter:
         """
         model = (config or {}).get("model") or self._config.model or "llama2"
         timeout = (config or {}).get("timeout") or self._config.timeout or 120.0
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Starting stream from Ollama",
@@ -195,11 +208,16 @@ class OllamaAdapter:
             message_count=len(messages),
         )
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
         }
+        if tools:
+            payload["tools"] = tools
+
+        # Track tool calls being assembled across chunks
+        tool_calls_accumulator: list[dict[str, Any]] = []
 
         with (
             httpx.Client(timeout=timeout) as client,
@@ -215,8 +233,30 @@ class OllamaAdapter:
                     chunk = json.loads(line)
                     message = chunk.get("message", {})
                     content = message.get("content", "")
+                    done = chunk.get("done", False)
+
+                    # Accumulate tool calls from chunks
+                    if message.get("tool_calls"):
+                        tool_calls_accumulator.extend(message["tool_calls"])
+
                     if content:
                         yield {
                             "content": content,
                             "provider": "ollama",
                         }
+
+                    # When done, emit final chunk with tool_calls if any
+                    if done:
+                        if tool_calls_accumulator:
+                            yield {
+                                "content": "",
+                                "provider": "ollama",
+                                "tool_calls": tool_calls_accumulator,
+                                "finish_reason": "tool_calls",
+                            }
+                        else:
+                            yield {
+                                "content": "",
+                                "provider": "ollama",
+                                "finish_reason": "stop",
+                            }

@@ -157,11 +157,14 @@ class ToolCall:
         function = tool_call.get("function", {})
         arguments_str = function.get("arguments", "{}")
 
-        # Parse JSON arguments
-        try:
-            arguments = json.loads(arguments_str)
-        except json.JSONDecodeError:
-            arguments = {}
+        # Parse JSON arguments (Ollama may return dict directly)
+        if isinstance(arguments_str, dict):
+            arguments = arguments_str
+        else:
+            try:
+                arguments = json.loads(arguments_str)
+            except (json.JSONDecodeError, TypeError):
+                arguments = {}
 
         return cls(
             id=tool_call.get("id", ""),

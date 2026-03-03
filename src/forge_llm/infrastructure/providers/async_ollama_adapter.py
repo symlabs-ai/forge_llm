@@ -115,6 +115,7 @@ class AsyncOllamaAdapter:
 
         model = (config or {}).get("model") or self._config.model or "llama2"
         timeout = (config or {}).get("timeout") or self._config.timeout or 120.0
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Sending async request to Ollama",
@@ -122,11 +123,13 @@ class AsyncOllamaAdapter:
             message_count=len(messages),
         )
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": False,
         }
+        if tools:
+            payload["tools"] = tools
 
         try:
             response = await client.post(
@@ -143,7 +146,7 @@ class AsyncOllamaAdapter:
 
         data = response.json()
         message = data.get("message", {})
-        return {
+        result: dict[str, Any] = {
             "content": message.get("content", ""),
             "role": message.get("role", "assistant"),
             "model": data.get("model", model),
@@ -156,6 +159,15 @@ class AsyncOllamaAdapter:
                 ),
             },
         }
+
+        # Include tool calls if present
+        if message.get("tool_calls"):
+            result["tool_calls"] = message["tool_calls"]
+            result["finish_reason"] = "tool_calls"
+        else:
+            result["finish_reason"] = "stop"
+
+        return result
 
     async def stream(
         self,
@@ -176,6 +188,7 @@ class AsyncOllamaAdapter:
 
         model = (config or {}).get("model") or self._config.model or "llama2"
         timeout = (config or {}).get("timeout") or self._config.timeout or 120.0
+        tools = (config or {}).get("tools")
 
         self._logger.debug(
             "Starting async stream from Ollama",
@@ -183,11 +196,16 @@ class AsyncOllamaAdapter:
             message_count=len(messages),
         )
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
         }
+        if tools:
+            payload["tools"] = tools
+
+        # Track tool calls being assembled across chunks
+        tool_calls_accumulator: list[dict[str, Any]] = []
 
         try:
             async with client.stream(
@@ -202,11 +220,33 @@ class AsyncOllamaAdapter:
                         chunk = json.loads(line)
                         message = chunk.get("message", {})
                         content = message.get("content", "")
+                        done = chunk.get("done", False)
+
+                        # Accumulate tool calls from chunks
+                        if message.get("tool_calls"):
+                            tool_calls_accumulator.extend(message["tool_calls"])
+
                         if content:
                             yield {
                                 "content": content,
                                 "provider": "ollama",
                             }
+
+                        # When done, emit final chunk with tool_calls if any
+                        if done:
+                            if tool_calls_accumulator:
+                                yield {
+                                    "content": "",
+                                    "provider": "ollama",
+                                    "tool_calls": tool_calls_accumulator,
+                                    "finish_reason": "tool_calls",
+                                }
+                            else:
+                                yield {
+                                    "content": "",
+                                    "provider": "ollama",
+                                    "finish_reason": "stop",
+                                }
         except httpx.ConnectError as e:
             raise ProviderNotConfiguredError(
                 "ollama",
