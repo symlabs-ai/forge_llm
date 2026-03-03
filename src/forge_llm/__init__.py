@@ -12,7 +12,7 @@ Main exports:
     - AsyncSummarizeCompactor: Async LLM-based summarization
     - ToolRegistry: Tool registration and execution
 """
-__version__ = "0.7.5"
+__version__ = "0.7.6"
 
 # Domain exports
 # Application exports

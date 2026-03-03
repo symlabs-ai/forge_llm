@@ -3,7 +3,7 @@
 [![Tests](https://img.shields.io/badge/tests-848%20passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
-[![Version](https://img.shields.io/badge/version-0.7.5-blue)]()
+[![Version](https://img.shields.io/badge/version-0.7.6-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)]()
 
 Unified LLM client with provider portability. Write once, run on any provider.
