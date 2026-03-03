@@ -149,73 +149,119 @@ class TestRealAsyncGroqChat:
 
 
 @skip_no_groq
+class TestRealAsyncGroqTranscription:
+    """Real async API tests with Groq audio transcription."""
+
+    @pytest.mark.asyncio
+    async def test_async_transcribe_json(self, wav_silence):
+        """Async transcribe with json response_format."""
+        from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+            AsyncGroqTranscriptionAdapter,
+        )
+
+        adapter = AsyncGroqTranscriptionAdapter(api_key=GROQ_KEY)
+
+        try:
+            result = await adapter.transcribe(wav_silence, response_format="json")
+            assert isinstance(result, dict)
+            assert "text" in result
+            print(f"\n  Async Groq Transcribe (json): {result}")
+        finally:
+            await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_async_transcribe_text(self, wav_silence):
+        """Async transcribe with text response_format."""
+        from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+            AsyncGroqTranscriptionAdapter,
+        )
+
+        adapter = AsyncGroqTranscriptionAdapter(api_key=GROQ_KEY)
+
+        try:
+            result = await adapter.transcribe(wav_silence, response_format="text")
+            assert isinstance(result, str)
+            print(f"\n  Async Groq Transcribe (text): '{result}'")
+        finally:
+            await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_async_transcribe_with_language(self, wav_silence):
+        """Async transcribe with explicit language."""
+        from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+            AsyncGroqTranscriptionAdapter,
+        )
+
+        adapter = AsyncGroqTranscriptionAdapter(api_key=GROQ_KEY)
+
+        try:
+            result = await adapter.transcribe(wav_silence, language="en")
+            assert isinstance(result, dict)
+            assert "text" in result
+            print(f"\n  Async Groq Transcribe (en): {result}")
+        finally:
+            await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_async_translate(self, wav_silence):
+        """Async translate task (requires whisper-large-v3)."""
+        from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+            AsyncGroqTranscriptionAdapter,
+        )
+
+        adapter = AsyncGroqTranscriptionAdapter(api_key=GROQ_KEY)
+
+        try:
+            result = await adapter.transcribe(
+                wav_silence, task="translate", model="whisper-large-v3"
+            )
+            assert isinstance(result, dict)
+            assert "text" in result
+            print(f"\n  Async Groq Translate: {result}")
+        finally:
+            await adapter.close()
+
+
+@skip_no_groq
 class TestRealGroqTranscription:
     """Real API tests with Groq audio transcription."""
 
-    def _make_wav_silence(self, duration_s: float = 1.0, sample_rate: int = 16000) -> bytes:
-        """Generate a minimal WAV file with silence."""
-        import struct
-
-        num_samples = int(sample_rate * duration_s)
-        data_size = num_samples * 2  # 16-bit = 2 bytes per sample
-
-        header = struct.pack(
-            "<4sI4s4sIHHIIHH4sI",
-            b"RIFF",
-            36 + data_size,
-            b"WAVE",
-            b"fmt ",
-            16,        # chunk size
-            1,         # PCM
-            1,         # mono
-            sample_rate,
-            sample_rate * 2,  # byte rate
-            2,         # block align
-            16,        # bits per sample
-            b"data",
-            data_size,
-        )
-        return header + b"\x00" * data_size
-
-    def test_transcribe_silence(self):
+    def test_transcribe_silence(self, wav_silence):
         """Transcribe silent audio -- should return empty or minimal text."""
         from forge_llm.infrastructure.providers.groq_transcription_adapter import (
             GroqTranscriptionAdapter,
         )
 
         adapter = GroqTranscriptionAdapter(api_key=GROQ_KEY)
-        audio = self._make_wav_silence(1.0)
 
-        result = adapter.transcribe(audio)
+        result = adapter.transcribe(wav_silence)
 
         # Silence should produce empty or very short output
         assert isinstance(result, str)
         print(f"\n  Groq Transcribe silence: '{result}'")
 
-    def test_transcribe_with_language(self):
+    def test_transcribe_with_language(self, wav_silence):
         """Transcribe with explicit language parameter."""
         from forge_llm.infrastructure.providers.groq_transcription_adapter import (
             GroqTranscriptionAdapter,
         )
 
         adapter = GroqTranscriptionAdapter(api_key=GROQ_KEY)
-        audio = self._make_wav_silence(1.0)
 
-        result = adapter.transcribe(audio, language="en")
+        result = adapter.transcribe(wav_silence, language="en")
 
         assert isinstance(result, str)
         print(f"\n  Groq Transcribe (en): '{result}'")
 
-    def test_translate(self):
+    def test_translate(self, wav_silence):
         """Test translate task (requires whisper-large-v3, turbo doesn't support it)."""
         from forge_llm.infrastructure.providers.groq_transcription_adapter import (
             GroqTranscriptionAdapter,
         )
 
         adapter = GroqTranscriptionAdapter(api_key=GROQ_KEY)
-        audio = self._make_wav_silence(1.0)
 
-        result = adapter.transcribe(audio, task="translate", model="whisper-large-v3")
+        result = adapter.transcribe(wav_silence, task="translate", model="whisper-large-v3")
 
         assert isinstance(result, str)
         print(f"\n  Groq Translate: '{result}'")

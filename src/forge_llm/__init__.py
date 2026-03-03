@@ -23,8 +23,18 @@ from forge_llm.application.session import (
     SummarizeCompactor,
     TruncateCompactor,
 )
+from forge_llm.application.ports.async_transcription_port import IAsyncTranscriptionPort
 from forge_llm.application.ports.transcription_port import ITranscriptionPort
 from forge_llm.application.tools import ToolRegistry
+from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+    AsyncGroqTranscriptionAdapter,
+)
+from forge_llm.infrastructure.providers.async_openai_transcription_adapter import (
+    AsyncOpenAITranscriptionAdapter,
+)
+from forge_llm.infrastructure.providers.groq_transcription_adapter import (
+    GroqTranscriptionAdapter,
+)
 from forge_llm.infrastructure.providers.openai_transcription_adapter import (
     OpenAITranscriptionAdapter,
 )
@@ -73,5 +83,9 @@ __all__ = [
     "ToolRegistry",
     # Transcription
     "ITranscriptionPort",
+    "IAsyncTranscriptionPort",
     "OpenAITranscriptionAdapter",
+    "GroqTranscriptionAdapter",
+    "AsyncOpenAITranscriptionAdapter",
+    "AsyncGroqTranscriptionAdapter",
 ]

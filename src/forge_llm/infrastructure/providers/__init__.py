@@ -35,6 +35,12 @@ from forge_llm.infrastructure.providers.async_symrouter_adapter import (
 )
 from forge_llm.infrastructure.providers.async_xai_adapter import AsyncXAIAdapter
 from forge_llm.infrastructure.providers.async_groq_adapter import AsyncGroqAdapter
+from forge_llm.infrastructure.providers.async_groq_transcription_adapter import (
+    AsyncGroqTranscriptionAdapter,
+)
+from forge_llm.infrastructure.providers.async_openai_transcription_adapter import (
+    AsyncOpenAITranscriptionAdapter,
+)
 from forge_llm.infrastructure.providers.claude_code_adapter import ClaudeCodeAdapter
 from forge_llm.infrastructure.providers.codex_adapter import CodexAdapter
 from forge_llm.infrastructure.providers.groq_transcription_adapter import (
@@ -79,4 +85,6 @@ __all__ = [
     "AsyncSymRouterAdapter",
     "OpenAITranscriptionAdapter",
     "GroqTranscriptionAdapter",
+    "AsyncOpenAITranscriptionAdapter",
+    "AsyncGroqTranscriptionAdapter",
 ]
