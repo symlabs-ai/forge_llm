@@ -13,7 +13,7 @@ jobs:
 
       - name: Setup
         run: |
-          poetry lock --no-update
+          poetry lock
           poetry install --with dev --no-interaction
 
       - name: Lint
