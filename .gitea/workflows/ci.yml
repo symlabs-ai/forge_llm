@@ -12,7 +12,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup
-        run: poetry install --with dev --no-interaction
+        run: |
+          poetry lock --no-update
+          poetry install --with dev --no-interaction
 
       - name: Lint
         run: poetry run ruff check . || true
