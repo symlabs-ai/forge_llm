@@ -84,12 +84,25 @@ class BaseAsyncTranscriptionAdapter:
 
         try:
             if task == "translate":
+                # OpenAI /audio/translations does not accept 'language'
+                kwargs.pop("language", None)
+                _logger.info("Audio translate request", provider=self.name, model=use_model, endpoint="translations")
                 response = await client.audio.translations.create(**kwargs)
             else:
                 response = await client.audio.transcriptions.create(**kwargs)
         except RuntimeError:
             raise
         except Exception as exc:
+            _logger.error(
+                "Audio API failed",
+                provider=self.name,
+                model=use_model,
+                task=task,
+                error_type=type(exc).__name__,
+                error=str(exc),
+                status_code=getattr(exc, "status_code", None),
+                response_body=getattr(exc, "body", None),
+            )
             raise RuntimeError(
                 f"Transcription failed ({self.name}): {exc}"
             ) from exc
