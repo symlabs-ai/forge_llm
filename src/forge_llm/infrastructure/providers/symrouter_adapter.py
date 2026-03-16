@@ -55,7 +55,7 @@ class SymRouterAdapter:
     @property
     def name(self) -> str:
         """Provider name."""
-        return "symrouter"
+        return "symgateway"
 
     @property
     def config(self) -> ProviderConfig:
@@ -73,7 +73,7 @@ class SymRouterAdapter:
             ProviderNotConfiguredError: If API key is missing
         """
         if not self._config.is_configured:
-            raise ProviderNotConfiguredError("symrouter")
+            raise ProviderNotConfiguredError("symgateway")
         return True
 
     def send(
@@ -123,7 +123,7 @@ class SymRouterAdapter:
         # Inject symrouter_metadata via extra_body
         metadata = self._build_symrouter_metadata()
         if metadata:
-            request_params["extra_body"] = {"symrouter_metadata": metadata}
+            request_params["extra_body"] = {"symgateway_metadata": metadata}
 
         response = client.chat.completions.create(**request_params)
 
@@ -134,7 +134,7 @@ class SymRouterAdapter:
             "content": choice.message.content,
             "role": choice.message.role,
             "model": response.model,
-            "provider": "symrouter",
+            "provider": "symgateway",
             "usage": {
                 "prompt_tokens": usage.prompt_tokens if usage else 0,
                 "completion_tokens": usage.completion_tokens if usage else 0,
@@ -145,7 +145,7 @@ class SymRouterAdapter:
         # Extract gateway metadata (request_id, estimated_cost, provider, fallback)
         sr_meta = self._extract_symrouter_response(response)
         if sr_meta:
-            result["symrouter"] = sr_meta
+            result["symgateway"] = sr_meta
 
         if choice.message.tool_calls:
             result["tool_calls"] = [
@@ -211,7 +211,7 @@ class SymRouterAdapter:
         # Inject symrouter_metadata via extra_body
         metadata = self._build_symrouter_metadata()
         if metadata:
-            request_params["extra_body"] = {"symrouter_metadata": metadata}
+            request_params["extra_body"] = {"symgateway_metadata": metadata}
 
         response = client.chat.completions.create(**request_params)
 
@@ -229,7 +229,7 @@ class SymRouterAdapter:
             if delta.content:
                 yield {
                     "content": delta.content,
-                    "provider": "symrouter",
+                    "provider": "symgateway",
                 }
 
             # Handle tool call chunks
@@ -257,7 +257,7 @@ class SymRouterAdapter:
             if finish_reason:
                 payload: dict[str, Any] = {
                     "content": "",
-                    "provider": "symrouter",
+                    "provider": "symgateway",
                     "finish_reason": finish_reason,
                 }
                 if tool_calls_accumulator:
@@ -301,7 +301,7 @@ class SymRouterAdapter:
         # Inject symrouter_metadata via extra_body
         metadata = self._build_symrouter_metadata()
         if metadata:
-            params["extra_body"] = {"symrouter_metadata": metadata}
+            params["extra_body"] = {"symgateway_metadata": metadata}
 
         self._logger.debug(
             "Generating image via Sym Router Gateway",
@@ -322,13 +322,13 @@ class SymRouterAdapter:
                 for img in response.data
             ],
             "model": params["model"],
-            "provider": "symrouter",
+            "provider": "symgateway",
         }
 
         # Extract gateway metadata
         sr_meta = self._extract_symrouter_response(response)
         if sr_meta:
-            result["symrouter"] = sr_meta
+            result["symgateway"] = sr_meta
 
         return result
 
@@ -371,11 +371,11 @@ class SymRouterAdapter:
 
         # Try accessing from Pydantic model_extra (OpenAI SDK v1+ with Pydantic v2)
         raw = getattr(response, "model_extra", None) or {}
-        if "symrouter" in raw:
-            sr_data = raw["symrouter"]
+        if "symgateway" in raw:
+            sr_data = raw["symgateway"]
         # Fallback: try direct attribute access
-        elif hasattr(response, "symrouter"):
-            sr_data = response.symrouter
+        elif hasattr(response, "symgateway"):
+            sr_data = response.symgateway
 
         return sr_data
 

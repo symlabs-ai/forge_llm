@@ -215,7 +215,7 @@ class TestSymRouterImageGeneration:
         mock_client = MagicMock()
         mock_response = _make_image_response()
         mock_response.model_extra = {
-            "symrouter": {
+            "symgateway": {
                 "request_id": "sr_img001",
                 "estimated_cost": 0.04,
             }
@@ -223,7 +223,7 @@ class TestSymRouterImageGeneration:
         mock_client.images.generate.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             extra={
                 "end_customer_id": "user-789",
@@ -241,15 +241,15 @@ class TestSymRouterImageGeneration:
 
         # Verify metadata injected
         call_kwargs = mock_client.images.generate.call_args.kwargs
-        metadata = call_kwargs["extra_body"]["symrouter_metadata"]
+        metadata = call_kwargs["extra_body"]["symgateway_metadata"]
         assert metadata["end_customer_id"] == "user-789"
         assert metadata["workflow_id"] == "cover-gen"
         assert metadata["tags"] == ["production"]
 
         # Verify response includes symrouter data
-        assert result["provider"] == "symrouter"
-        assert result["symrouter"]["request_id"] == "sr_img001"
-        assert result["symrouter"]["estimated_cost"] == 0.04
+        assert result["provider"] == "symgateway"
+        assert result["symgateway"]["request_id"] == "sr_img001"
+        assert result["symgateway"]["estimated_cost"] == 0.04
 
     def test_generate_image_without_metadata(self):
         """generate_image() should work without symrouter_metadata."""
@@ -257,7 +257,7 @@ class TestSymRouterImageGeneration:
         mock_client.images.generate.return_value = _make_image_response()
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test"
+            provider="symgateway", api_key="sk-sym_test"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -266,7 +266,7 @@ class TestSymRouterImageGeneration:
 
         call_kwargs = mock_client.images.generate.call_args.kwargs
         assert "extra_body" not in call_kwargs
-        assert result["provider"] == "symrouter"
+        assert result["provider"] == "symgateway"
 
 
 class TestAsyncSymRouterImageGeneration:
@@ -278,7 +278,7 @@ class TestAsyncSymRouterImageGeneration:
         mock_client = AsyncMock()
         mock_response = _make_image_response()
         mock_response.model_extra = {
-            "symrouter": {
+            "symgateway": {
                 "request_id": "sr_img_async",
                 "estimated_cost": 0.04,
             }
@@ -286,7 +286,7 @@ class TestAsyncSymRouterImageGeneration:
         mock_client.images.generate.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             extra={"workflow_id": "async-gen"},
         )
@@ -296,8 +296,8 @@ class TestAsyncSymRouterImageGeneration:
         result = await adapter.generate_image("A sunset")
 
         call_kwargs = mock_client.images.generate.call_args.kwargs
-        assert call_kwargs["extra_body"]["symrouter_metadata"]["workflow_id"] == "async-gen"
-        assert result["symrouter"]["request_id"] == "sr_img_async"
+        assert call_kwargs["extra_body"]["symgateway_metadata"]["workflow_id"] == "async-gen"
+        assert result["symgateway"]["request_id"] == "sr_img_async"
 
 
 class TestXAIImageGeneration:

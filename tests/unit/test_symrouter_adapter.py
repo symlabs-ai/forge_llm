@@ -21,21 +21,21 @@ class TestSymRouterAdapter:
 
     def test_adapter_name_is_symrouter(self):
         """Adapter name should be 'symrouter'."""
-        config = ProviderConfig(provider="symrouter", api_key="sk-sym_test")
+        config = ProviderConfig(provider="symgateway", api_key="sk-sym_test")
         adapter = SymRouterAdapter(config)
 
-        assert adapter.name == "symrouter"
+        assert adapter.name == "symgateway"
 
     def test_adapter_has_config(self):
         """Adapter should have config property."""
-        config = ProviderConfig(provider="symrouter", api_key="sk-sym_test")
+        config = ProviderConfig(provider="symgateway", api_key="sk-sym_test")
         adapter = SymRouterAdapter(config)
 
         assert adapter.config == config
 
     def test_validate_without_api_key_raises(self):
         """validate() should raise when API key is missing."""
-        config = ProviderConfig(provider="symrouter")
+        config = ProviderConfig(provider="symgateway")
         adapter = SymRouterAdapter(config)
 
         with pytest.raises(ProviderNotConfiguredError):
@@ -43,14 +43,14 @@ class TestSymRouterAdapter:
 
     def test_validate_with_api_key_returns_true(self):
         """validate() should return True with valid config."""
-        config = ProviderConfig(provider="symrouter", api_key="sk-sym_test")
+        config = ProviderConfig(provider="symgateway", api_key="sk-sym_test")
         adapter = SymRouterAdapter(config)
 
         assert adapter.validate() is True
 
     def test_client_uses_default_base_url(self):
         """Client should use default Sym Router base URL."""
-        config = ProviderConfig(provider="symrouter", api_key="sk-sym_test")
+        config = ProviderConfig(provider="symgateway", api_key="sk-sym_test")
         adapter = SymRouterAdapter(config)
 
         with patch("openai.OpenAI") as mock_openai:
@@ -63,7 +63,7 @@ class TestSymRouterAdapter:
     def test_client_uses_custom_base_url(self):
         """Client should use custom base_url if provided."""
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             base_url="http://gateway:8010",
         )
@@ -94,7 +94,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -105,7 +105,7 @@ class TestSymRouterAdapter:
         assert result["content"] == "Hello from gateway!"
         assert result["role"] == "assistant"
         assert result["model"] == "gpt-4o-mini"
-        assert result["provider"] == "symrouter"
+        assert result["provider"] == "symgateway"
         assert result["usage"]["total_tokens"] == 15
 
     def test_send_injects_symrouter_metadata(self):
@@ -126,7 +126,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             model="gpt-4o-mini",
             extra={
@@ -142,7 +142,7 @@ class TestSymRouterAdapter:
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert "extra_body" in call_kwargs
-        metadata = call_kwargs["extra_body"]["symrouter_metadata"]
+        metadata = call_kwargs["extra_body"]["symgateway_metadata"]
         assert metadata["end_customer_id"] == "user-123"
         assert metadata["workflow_id"] == "summarize"
         assert metadata["tags"] == ["production", "v2"]
@@ -165,7 +165,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -189,7 +189,7 @@ class TestSymRouterAdapter:
         mock_response.usage.completion_tokens = 5
         mock_response.usage.total_tokens = 10
         mock_response.model_extra = {
-            "symrouter": {
+            "symgateway": {
                 "request_id": "sr_abc123",
                 "estimated_cost": 0.0015,
                 "provider": "openai",
@@ -200,17 +200,17 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
 
         result = adapter.send([{"role": "user", "content": "test"}])
 
-        assert "symrouter" in result
-        assert result["symrouter"]["request_id"] == "sr_abc123"
-        assert result["symrouter"]["estimated_cost"] == 0.0015
-        assert result["symrouter"]["provider"] == "openai"
+        assert "symgateway" in result
+        assert result["symgateway"]["request_id"] == "sr_abc123"
+        assert result["symgateway"]["estimated_cost"] == 0.0015
+        assert result["symgateway"]["provider"] == "openai"
 
     def test_send_includes_fallback_metadata(self):
         """send() should include fallback metadata when provider fell back."""
@@ -226,7 +226,7 @@ class TestSymRouterAdapter:
         mock_response.usage.completion_tokens = 5
         mock_response.usage.total_tokens = 10
         mock_response.model_extra = {
-            "symrouter": {
+            "symgateway": {
                 "request_id": "sr_def456",
                 "estimated_cost": 0.003,
                 "provider": "anthropic",
@@ -241,16 +241,16 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
 
         result = adapter.send([{"role": "user", "content": "test"}])
 
-        assert result["symrouter"]["fallback"]["attempted"] == "openai"
-        assert result["symrouter"]["fallback"]["used"] == "anthropic"
-        assert result["symrouter"]["fallback"]["reason"] == "rate_limit"
+        assert result["symgateway"]["fallback"]["attempted"] == "openai"
+        assert result["symgateway"]["fallback"]["used"] == "anthropic"
+        assert result["symgateway"]["fallback"]["reason"] == "rate_limit"
 
     def test_stream_yields_chunks(self):
         """stream() should yield response chunks."""
@@ -272,7 +272,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = iter([chunk1, chunk2])
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -281,7 +281,7 @@ class TestSymRouterAdapter:
 
         assert len(chunks) == 3  # 2 content chunks + 1 finish chunk
         assert chunks[0]["content"] == "Hello"
-        assert chunks[0]["provider"] == "symrouter"
+        assert chunks[0]["provider"] == "symgateway"
         assert chunks[1]["content"] == " World"
         assert chunks[2]["finish_reason"] == "stop"
 
@@ -298,7 +298,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = iter([chunk])
 
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             model="gpt-4o-mini",
             extra={
@@ -313,7 +313,7 @@ class TestSymRouterAdapter:
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert "extra_body" in call_kwargs
-        metadata = call_kwargs["extra_body"]["symrouter_metadata"]
+        metadata = call_kwargs["extra_body"]["symgateway_metadata"]
         assert metadata["end_customer_id"] == "user-456"
         assert metadata["workflow_id"] == "auto-tag"
 
@@ -341,7 +341,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -414,7 +414,7 @@ class TestSymRouterAdapter:
         ])
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -450,7 +450,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -497,7 +497,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -544,7 +544,7 @@ class TestSymRouterAdapter:
         mock_client.chat.completions.create.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         adapter = SymRouterAdapter(config)
         adapter._client = mock_client
@@ -583,7 +583,7 @@ class TestSymRouterAdapter:
         mock_response.created = 1234567890
         mock_response.data = [mock_img]
         mock_response.model_extra = {
-            "symrouter": {
+            "symgateway": {
                 "request_id": "sr_img123",
                 "estimated_cost": 0.04,
             }
@@ -592,7 +592,7 @@ class TestSymRouterAdapter:
         mock_client.images.generate.return_value = mock_response
 
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             extra={"workflow_id": "cover-gen"},
         )
@@ -609,29 +609,29 @@ class TestSymRouterAdapter:
         assert result["data"][0]["url"] == "https://images.example.com/generated.png"
         assert result["data"][0]["revised_prompt"] == "A beautiful sunset over the ocean"
         assert result["model"] == "dall-e-3"
-        assert result["provider"] == "symrouter"
-        assert result["symrouter"]["request_id"] == "sr_img123"
-        assert result["symrouter"]["estimated_cost"] == 0.04
+        assert result["provider"] == "symgateway"
+        assert result["symgateway"]["request_id"] == "sr_img123"
+        assert result["symgateway"]["estimated_cost"] == 0.04
 
         # Verify symrouter_metadata was injected
         call_kwargs = mock_client.images.generate.call_args.kwargs
-        assert call_kwargs["extra_body"]["symrouter_metadata"]["workflow_id"] == "cover-gen"
+        assert call_kwargs["extra_body"]["symgateway_metadata"]["workflow_id"] == "cover-gen"
         assert call_kwargs["quality"] == "hd"
 
     def test_chat_agent_creates_symrouter_provider(self):
         """ChatAgent should create SymRouterAdapter for provider='symrouter'."""
         agent = ChatAgent(
-            provider="symrouter", api_key="sk-sym_test", model="gpt-4o-mini"
+            provider="symgateway", api_key="sk-sym_test", model="gpt-4o-mini"
         )
         provider = agent._create_provider()
 
         assert isinstance(provider, SymRouterAdapter)
-        assert provider.name == "symrouter"
+        assert provider.name == "symgateway"
 
     def test_build_symrouter_metadata_partial(self):
         """_build_symrouter_metadata should handle partial extra config."""
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             extra={"workflow_id": "summarize"},
         )
@@ -646,7 +646,7 @@ class TestSymRouterAdapter:
     def test_build_symrouter_metadata_empty(self):
         """_build_symrouter_metadata should return None for empty extra."""
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
             extra={},
         )
@@ -657,7 +657,7 @@ class TestSymRouterAdapter:
     def test_build_symrouter_metadata_none(self):
         """_build_symrouter_metadata should return None when extra is None."""
         config = ProviderConfig(
-            provider="symrouter",
+            provider="symgateway",
             api_key="sk-sym_test",
         )
         adapter = SymRouterAdapter(config)
@@ -666,13 +666,13 @@ class TestSymRouterAdapter:
 
     def test_extract_symrouter_response_no_metadata(self):
         """_extract_symrouter_response should return empty dict when no metadata."""
-        config = ProviderConfig(provider="symrouter", api_key="sk-sym_test")
+        config = ProviderConfig(provider="symgateway", api_key="sk-sym_test")
         adapter = SymRouterAdapter(config)
 
         mock_response = MagicMock()
         mock_response.model_extra = None
         # Remove symrouter attribute
-        del mock_response.symrouter
+        del mock_response.symgateway
 
         result = adapter._extract_symrouter_response(mock_response)
         assert result == {}

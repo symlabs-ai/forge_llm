@@ -502,7 +502,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register("groq", _groq_factory, _groq_meta)
     registry.register("claude-code", _claude_code_factory, _claude_code_meta)
     registry.register("codex", _codex_factory, _codex_meta)
-    registry.register("symrouter", _symrouter_factory, _symrouter_meta)
+    registry.register("symgateway", _symrouter_factory, _symrouter_meta)
 
     # --- Register async providers ---
     registry.register_async("openai", _async_openai_factory)
@@ -511,7 +511,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     registry.register_async("groq", _async_groq_factory)
     registry.register_async("ollama", _async_ollama_factory)
     registry.register_async("openrouter", _async_openrouter_factory)
-    registry.register_async("symrouter", _async_symrouter_factory)
+    registry.register_async("symgateway", _async_symrouter_factory)
 
 
 # Singleton instance
