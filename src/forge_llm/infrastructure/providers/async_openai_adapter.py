@@ -202,6 +202,8 @@ class AsyncOpenAIAdapter:
 
         converted_messages = self._convert_messages_for_openai(messages)
 
+        tool_choice = (config or {}).get("tool_choice")
+
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -209,6 +211,8 @@ class AsyncOpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        if tool_choice is not None:
+            request_params["tool_choice"] = tool_choice
 
         response = await client.chat.completions.create(**request_params)
 
@@ -261,6 +265,8 @@ class AsyncOpenAIAdapter:
             has_tools=tools is not None,
         )
 
+        tool_choice = (config or {}).get("tool_choice")
+
         converted_messages = self._convert_messages_for_openai(messages)
 
         request_params: dict[str, Any] = {
@@ -271,6 +277,8 @@ class AsyncOpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        if tool_choice is not None:
+            request_params["tool_choice"] = tool_choice
 
         response = await client.chat.completions.create(**request_params)
 
