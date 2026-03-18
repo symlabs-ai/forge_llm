@@ -47,6 +47,7 @@ class BaseAsyncTranscriptionAdapter:
         response_format: str = "json",
         prompt: str | None = None,
         filename: str = "audio.wav",
+        extra_body: dict | None = None,
     ) -> str | dict:
         """
         Transcribe audio via provider API.
@@ -81,6 +82,8 @@ class BaseAsyncTranscriptionAdapter:
             kwargs["language"] = language
         if prompt is not None:
             kwargs["prompt"] = prompt
+        if extra_body is not None:
+            kwargs["extra_body"] = extra_body
 
         try:
             if task == "translate":
