@@ -272,3 +272,102 @@ class TestChatAgentSessionIntegration:
         assert response.content == "Response"
         # Session should have user + assistant
         assert len(session.messages) == 2
+
+    def test_chat_with_raw_tools_in_config(self):
+        """chat() passes raw OpenAI-format tools from ChatConfig to provider."""
+        mock_provider = MagicMock()
+        mock_provider.send.return_value = {
+            "content": None,
+            "role": "assistant",
+            "model": "gpt-4",
+            "provider": "openai",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            "tool_calls": [
+                {
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "London"}',
+                    },
+                }
+            ],
+            "finish_reason": "tool_calls",
+        }
+
+        agent = ChatAgent(provider="openai", api_key="test-key")
+        agent._provider = mock_provider
+
+        raw_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"location": {"type": "string"}},
+                        "required": ["location"],
+                    },
+                },
+            }
+        ]
+
+        config = ChatConfig(tools=raw_tools)
+        response = agent.chat("What's the weather?", config=config, auto_execute_tools=False)
+
+        # Verify tools were passed to provider
+        call_args = mock_provider.send.call_args
+        config_dict = call_args[1].get("config") or call_args[0][1]
+        assert "tools" in config_dict
+        assert config_dict["tools"] == raw_tools
+
+        # Verify tool_calls are in the response
+        assert response.message.tool_calls is not None
+        assert len(response.message.tool_calls) == 1
+        assert response.message.tool_calls[0]["function"]["name"] == "get_weather"
+        assert response.metadata.finish_reason == "tool_calls"
+
+    def test_raw_tools_in_config_override_constructor_tools(self):
+        """Per-request raw tools from ChatConfig take priority over constructor tools."""
+        from forge_llm.domain.entities import ToolDefinition
+
+        mock_provider = MagicMock()
+        mock_provider.send.return_value = {
+            "content": "OK",
+            "role": "assistant",
+            "model": "gpt-4",
+            "provider": "openai",
+            "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+        }
+
+        constructor_tools = [
+            ToolDefinition(
+                name="old_tool",
+                description="Old tool from constructor",
+                parameters={"type": "object", "properties": {}},
+            )
+        ]
+
+        agent = ChatAgent(provider="openai", api_key="test-key", tools=constructor_tools)
+        agent._provider = mock_provider
+
+        raw_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "new_tool",
+                    "description": "New per-request tool",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+        config = ChatConfig(tools=raw_tools)
+        agent.chat("Test", config=config, auto_execute_tools=False)
+
+        # Verify per-request tools were used, not constructor tools
+        call_args = mock_provider.send.call_args
+        config_dict = call_args[1].get("config") or call_args[0][1]
+        assert config_dict["tools"] == raw_tools
+        assert config_dict["tools"][0]["function"]["name"] == "new_tool"

@@ -187,9 +187,12 @@ class ChatAgent:
 
         # Build config with tools
         config_dict = config.to_dict() if config else {}
-        tool_defs = self.get_tool_definitions()
-        if tool_defs:
-            config_dict["tools"] = [t.to_openai_format() for t in tool_defs]
+        # Per-request raw tools from ChatConfig.tools take priority;
+        # fall back to constructor-level ToolDefinition/ToolRegistry tools.
+        if "tools" not in config_dict:
+            tool_defs = self.get_tool_definitions()
+            if tool_defs:
+                config_dict["tools"] = [t.to_openai_format() for t in tool_defs]
 
         # Call provider with error handling
         result = self._call_provider(provider, messages_dict, config_dict)
@@ -309,9 +312,12 @@ class ChatAgent:
 
         # Build config with tools
         config_dict = config.to_dict() if config else {}
-        tool_defs = self.get_tool_definitions()
-        if tool_defs:
-            config_dict["tools"] = [t.to_openai_format() for t in tool_defs]
+        # Per-request raw tools from ChatConfig.tools take priority;
+        # fall back to constructor-level ToolDefinition/ToolRegistry tools.
+        if "tools" not in config_dict:
+            tool_defs = self.get_tool_definitions()
+            if tool_defs:
+                config_dict["tools"] = [t.to_openai_format() for t in tool_defs]
 
         # Stream and handle tool calls
         yield from self._stream_with_tools(

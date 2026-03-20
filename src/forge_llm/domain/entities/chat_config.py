@@ -3,7 +3,7 @@ ChatConfig - Configuration for chat operations.
 
 Holds parameters for a single chat request.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -19,6 +19,10 @@ class ChatConfig:
         top_p: Nucleus sampling parameter
         stop: Stop sequences
         stream: Whether to stream response
+        tools: Raw tool definitions in OpenAI format (list of dicts).
+               Use this to pass native function calling tools per-request
+               without requiring ToolRegistry or ToolDefinition objects.
+               These are passed directly to the provider without conversion.
     """
 
     model: str | None = None
@@ -27,6 +31,7 @@ class ChatConfig:
     top_p: float | None = None
     stop: list[str] | None = None
     stream: bool = False
+    tools: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict, omitting None values."""
@@ -44,6 +49,8 @@ class ChatConfig:
             result["stop"] = self.stop
         if self.stream:
             result["stream"] = self.stream
+        if self.tools is not None:
+            result["tools"] = self.tools
 
         return result
 
