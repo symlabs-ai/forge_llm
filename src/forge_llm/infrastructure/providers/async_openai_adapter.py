@@ -269,6 +269,8 @@ class AsyncOpenAIAdapter:
 
         converted_messages = self._convert_messages_for_openai(messages)
 
+        include_usage = (config or {}).get("include_usage", False)
+
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -279,13 +281,27 @@ class AsyncOpenAIAdapter:
             request_params["tools"] = tools
         if tool_choice is not None:
             request_params["tool_choice"] = tool_choice
+        if include_usage:
+            request_params["stream_options"] = {"include_usage": True}
 
         response = await client.chat.completions.create(**request_params)
 
         tool_calls_accumulator: dict[int, dict[str, Any]] = {}
 
         async for chunk in response:
+            # When include_usage is enabled, OpenAI sends a final chunk
+            # with usage data and empty choices
             if not chunk.choices:
+                if include_usage and chunk.usage:
+                    yield {
+                        "content": "",
+                        "provider": "openai",
+                        "usage": {
+                            "prompt_tokens": chunk.usage.prompt_tokens,
+                            "completion_tokens": chunk.usage.completion_tokens,
+                            "total_tokens": chunk.usage.total_tokens,
+                        },
+                    }
                 continue
 
             delta = chunk.choices[0].delta
@@ -318,18 +334,32 @@ class AsyncOpenAIAdapter:
                             )
 
             if finish_reason == "tool_calls" and tool_calls_accumulator:
-                yield {
+                payload: dict[str, Any] = {
                     "content": "",
                     "provider": "openai",
                     "tool_calls": list(tool_calls_accumulator.values()),
                     "finish_reason": "tool_calls",
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
             elif finish_reason:
-                yield {
+                payload = {
                     "content": "",
                     "provider": "openai",
                     "finish_reason": finish_reason,
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
 
     # ── Responses path (new) ───────────────────────────────────────────
 
@@ -376,6 +406,7 @@ class AsyncOpenAIAdapter:
 
         model = (config or {}).get("model") or self._config.model or "gpt-4"
         tools = (config or {}).get("tools")
+        include_usage = (config or {}).get("include_usage", False)
 
         self._logger.debug(
             "Starting async stream from OpenAI (responses)",
@@ -437,6 +468,14 @@ class AsyncOpenAIAdapter:
                 }
                 if tool_calls_accumulator:
                     payload["tool_calls"] = list(tool_calls_accumulator.values())
+                # Responses API returns usage in response.completed event
+                if include_usage and hasattr(event, "response") and hasattr(event.response, "usage"):
+                    usage = event.response.usage
+                    payload["usage"] = {
+                        "prompt_tokens": getattr(usage, "input_tokens", 0),
+                        "completion_tokens": getattr(usage, "output_tokens", 0),
+                        "total_tokens": getattr(usage, "input_tokens", 0) + getattr(usage, "output_tokens", 0),
+                    }
                 yield payload
 
     # ── Image generation ─────────────────────────────────────────────

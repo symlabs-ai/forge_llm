@@ -205,9 +205,15 @@ class AsyncAnthropicAdapter:
         if tools:
             request_params["tools"] = self._convert_tools_to_anthropic(tools)
 
+        include_usage = (config or {}).get("include_usage", False)
+
         # Track tool use blocks being assembled
         current_tool_use: dict[str, Any] | None = None
         tool_calls: list[dict[str, Any]] = []
+
+        # Track usage from Anthropic streaming events
+        usage_input_tokens: int = 0
+        usage_output_tokens: int = 0
 
         async with client.messages.stream(**request_params) as stream:
             async for event in stream:
@@ -248,21 +254,38 @@ class AsyncAnthropicAdapter:
                         })
                         current_tool_use = None
 
+                # Track usage from message_start (input_tokens)
+                elif event.type == "message_start":
+                    if include_usage and hasattr(event, "message") and hasattr(event.message, "usage"):
+                        usage_input_tokens = getattr(event.message.usage, "input_tokens", 0)
+
+                # Track usage from message_delta (output_tokens)
+                elif event.type == "message_delta":
+                    if include_usage and hasattr(event, "usage"):
+                        usage_output_tokens = getattr(event.usage, "output_tokens", 0)
+
                 # Handle message stop
                 elif event.type == "message_stop":
                     if tool_calls:
-                        yield {
+                        payload: dict[str, Any] = {
                             "content": "",
                             "provider": "anthropic",
                             "tool_calls": tool_calls,
                             "finish_reason": "tool_calls",
                         }
                     else:
-                        yield {
+                        payload = {
                             "content": "",
                             "provider": "anthropic",
                             "finish_reason": "stop",
                         }
+                    if include_usage:
+                        payload["usage"] = {
+                            "prompt_tokens": usage_input_tokens,
+                            "completion_tokens": usage_output_tokens,
+                            "total_tokens": usage_input_tokens + usage_output_tokens,
+                        }
+                    yield payload
 
     def _extract_system_prompt(
         self, messages: list[dict[str, Any]]

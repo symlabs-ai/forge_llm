@@ -175,6 +175,8 @@ class AsyncOpenRouterAdapter:
             has_tools=tools is not None,
         )
 
+        include_usage = (config or {}).get("include_usage", False)
+
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -186,6 +188,8 @@ class AsyncOpenRouterAdapter:
             body["temperature"] = temperature
         if tools:
             body["tools"] = tools
+        if include_usage:
+            body["stream_options"] = {"include_usage": True}
 
         tool_calls_accumulator: dict[int, dict[str, Any]] = {}
 
@@ -212,6 +216,18 @@ class AsyncOpenRouterAdapter:
                     continue
 
                 if not data.get("choices"):
+                    # Usage-only chunk (empty choices, has usage)
+                    if include_usage and data.get("usage"):
+                        usage = data["usage"]
+                        yield {
+                            "content": "",
+                            "provider": "openrouter",
+                            "usage": {
+                                "prompt_tokens": usage.get("prompt_tokens", 0),
+                                "completion_tokens": usage.get("completion_tokens", 0),
+                                "total_tokens": usage.get("total_tokens", 0),
+                            },
+                        }
                     continue
 
                 choice = data["choices"][0]
@@ -247,18 +263,34 @@ class AsyncOpenRouterAdapter:
                                 ] += func["arguments"]
 
                 if finish_reason == "tool_calls" and tool_calls_accumulator:
-                    yield {
+                    payload: dict[str, Any] = {
                         "content": "",
                         "provider": "openrouter",
                         "tool_calls": list(tool_calls_accumulator.values()),
                         "finish_reason": "tool_calls",
                     }
+                    if include_usage and data.get("usage"):
+                        usage = data["usage"]
+                        payload["usage"] = {
+                            "prompt_tokens": usage.get("prompt_tokens", 0),
+                            "completion_tokens": usage.get("completion_tokens", 0),
+                            "total_tokens": usage.get("total_tokens", 0),
+                        }
+                    yield payload
                 elif finish_reason:
-                    yield {
+                    payload = {
                         "content": "",
                         "provider": "openrouter",
                         "finish_reason": finish_reason,
                     }
+                    if include_usage and data.get("usage"):
+                        usage = data["usage"]
+                        payload["usage"] = {
+                            "prompt_tokens": usage.get("prompt_tokens", 0),
+                            "completion_tokens": usage.get("completion_tokens", 0),
+                            "total_tokens": usage.get("total_tokens", 0),
+                        }
+                    yield payload
 
     async def list_models(self) -> list[dict[str, Any]]:
         """

@@ -188,6 +188,8 @@ class AsyncGroqAdapter:
 
         converted_messages = self._convert_messages_for_openai(messages)
 
+        include_usage = (config or {}).get("include_usage", False)
+
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -196,6 +198,8 @@ class AsyncGroqAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        if include_usage:
+            request_params["stream_options"] = {"include_usage": True}
 
         response = await client.chat.completions.create(**request_params)
 
@@ -203,6 +207,17 @@ class AsyncGroqAdapter:
 
         async for chunk in response:
             if not chunk.choices:
+                # Usage-only chunk (empty choices, has usage)
+                if include_usage and chunk.usage:
+                    yield {
+                        "content": "",
+                        "provider": "groq",
+                        "usage": {
+                            "prompt_tokens": chunk.usage.prompt_tokens,
+                            "completion_tokens": chunk.usage.completion_tokens,
+                            "total_tokens": chunk.usage.total_tokens,
+                        },
+                    }
                 continue
 
             delta = chunk.choices[0].delta
@@ -235,18 +250,32 @@ class AsyncGroqAdapter:
                             )
 
             if finish_reason == "tool_calls" and tool_calls_accumulator:
-                yield {
+                payload: dict[str, Any] = {
                     "content": "",
                     "provider": "groq",
                     "tool_calls": list(tool_calls_accumulator.values()),
                     "finish_reason": "tool_calls",
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
             elif finish_reason:
-                yield {
+                payload = {
                     "content": "",
                     "provider": "groq",
                     "finish_reason": finish_reason,
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
 
     async def generate_image(
         self,

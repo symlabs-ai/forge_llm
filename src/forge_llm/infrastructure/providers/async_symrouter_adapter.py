@@ -193,6 +193,8 @@ class AsyncSymRouterAdapter:
         # Convert messages for OpenAI format (handles multimodal content)
         converted_messages = self._convert_messages_for_openai(messages)
 
+        include_usage = (config or {}).get("include_usage", False)
+
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -201,6 +203,8 @@ class AsyncSymRouterAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        if include_usage:
+            request_params["stream_options"] = {"include_usage": True}
 
         # Inject symrouter_metadata via extra_body
         metadata = self._build_symrouter_metadata()
@@ -214,6 +218,17 @@ class AsyncSymRouterAdapter:
 
         async for chunk in response:
             if not chunk.choices:
+                # Usage-only chunk (empty choices, has usage)
+                if include_usage and chunk.usage:
+                    yield {
+                        "content": "",
+                        "provider": "symgateway",
+                        "usage": {
+                            "prompt_tokens": chunk.usage.prompt_tokens,
+                            "completion_tokens": chunk.usage.completion_tokens,
+                            "total_tokens": chunk.usage.total_tokens,
+                        },
+                    }
                 continue
 
             delta = chunk.choices[0].delta
@@ -249,18 +264,32 @@ class AsyncSymRouterAdapter:
 
             # When finish_reason is 'tool_calls', yield the accumulated tool calls
             if finish_reason == "tool_calls" and tool_calls_accumulator:
-                yield {
+                payload: dict[str, Any] = {
                     "content": "",
                     "provider": "symgateway",
                     "tool_calls": list(tool_calls_accumulator.values()),
                     "finish_reason": "tool_calls",
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
             elif finish_reason:
-                yield {
+                payload = {
                     "content": "",
                     "provider": "symgateway",
                     "finish_reason": finish_reason,
                 }
+                if include_usage and chunk.usage:
+                    payload["usage"] = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                yield payload
 
     async def generate_image(
         self,
