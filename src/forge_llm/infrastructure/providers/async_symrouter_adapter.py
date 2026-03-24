@@ -116,10 +116,17 @@ class AsyncSymRouterAdapter:
         if tools:
             request_params["tools"] = tools
 
-        # Inject symrouter_metadata via extra_body
+        # Inject symrouter_metadata and objective via extra_body
+        extra_body: dict[str, Any] = {}
         metadata = self._build_symrouter_metadata()
         if metadata:
-            request_params["extra_body"] = {"symgateway_metadata": metadata}
+            extra_body["symgateway_metadata"] = metadata
+        # If model looks like an objective (no slash, no dot), send as objective
+        objective = (self._config.extra or {}).get("objective")
+        if objective:
+            extra_body["objective"] = objective
+        if extra_body:
+            request_params["extra_body"] = extra_body
 
         response = await client.chat.completions.create(**request_params)
 
@@ -206,10 +213,16 @@ class AsyncSymRouterAdapter:
         if include_usage:
             request_params["stream_options"] = {"include_usage": True}
 
-        # Inject symrouter_metadata via extra_body
+        # Inject symrouter_metadata and objective via extra_body
+        extra_body: dict[str, Any] = {}
         metadata = self._build_symrouter_metadata()
         if metadata:
-            request_params["extra_body"] = {"symgateway_metadata": metadata}
+            extra_body["symgateway_metadata"] = metadata
+        objective = (self._config.extra or {}).get("objective")
+        if objective:
+            extra_body["objective"] = objective
+        if extra_body:
+            request_params["extra_body"] = extra_body
 
         response = await client.chat.completions.create(**request_params)
 
@@ -324,10 +337,16 @@ class AsyncSymRouterAdapter:
         if config and config.get("response_format"):
             params["response_format"] = config["response_format"]
 
-        # Inject symrouter_metadata via extra_body
+        # Inject symrouter_metadata and objective via extra_body
+        extra_body: dict[str, Any] = {}
         metadata = self._build_symrouter_metadata()
         if metadata:
-            params["extra_body"] = {"symgateway_metadata": metadata}
+            extra_body["symgateway_metadata"] = metadata
+        objective = (self._config.extra or {}).get("objective")
+        if objective:
+            extra_body["objective"] = objective
+        if extra_body:
+            params["extra_body"] = extra_body
 
         self._logger.debug(
             "Generating image via Sym Router Gateway (async)",
