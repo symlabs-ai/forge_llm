@@ -121,13 +121,16 @@ class AsyncSymRouterAdapter:
         metadata = self._build_symrouter_metadata(config)
         if metadata:
             extra_body["symgateway_metadata"] = metadata
-        # If model looks like an objective (no slash, no dot), send as objective
         merged_extra = dict(self._config.extra or {})
         if config and config.get("extra"):
             merged_extra.update(config["extra"])
         objective = merged_extra.get("objective")
         if objective:
+            # Always send objective; override model to None in body
+            # (gateway rejects requests with both model and objective)
+            # OpenAI SDK requires model param, but extra_body merges over it
             extra_body["objective"] = objective
+            extra_body["model"] = None
         if extra_body:
             request_params["extra_body"] = extra_body
 
@@ -227,6 +230,7 @@ class AsyncSymRouterAdapter:
         objective = merged_extra.get("objective")
         if objective:
             extra_body["objective"] = objective
+            extra_body["model"] = None
         if extra_body:
             request_params["extra_body"] = extra_body
 
@@ -354,6 +358,7 @@ class AsyncSymRouterAdapter:
         objective = merged_extra.get("objective")
         if objective:
             extra_body["objective"] = objective
+            extra_body["model"] = None
         if extra_body:
             params["extra_body"] = extra_body
 
