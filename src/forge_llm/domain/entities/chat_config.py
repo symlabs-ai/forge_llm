@@ -32,6 +32,7 @@ class ChatConfig:
     stop: list[str] | None = None
     stream: bool = False
     tools: list[dict[str, Any]] | None = None
+    extra: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict, omitting None values."""
@@ -51,6 +52,8 @@ class ChatConfig:
             result["stream"] = self.stream
         if self.tools is not None:
             result["tools"] = self.tools
+        if self.extra is not None:
+            result["extra"] = self.extra
 
         return result
 

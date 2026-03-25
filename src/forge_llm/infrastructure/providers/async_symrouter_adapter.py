@@ -118,11 +118,14 @@ class AsyncSymRouterAdapter:
 
         # Inject symrouter_metadata and objective via extra_body
         extra_body: dict[str, Any] = {}
-        metadata = self._build_symrouter_metadata()
+        metadata = self._build_symrouter_metadata(config)
         if metadata:
             extra_body["symgateway_metadata"] = metadata
         # If model looks like an objective (no slash, no dot), send as objective
-        objective = (self._config.extra or {}).get("objective")
+        merged_extra = dict(self._config.extra or {})
+        if config and config.get("extra"):
+            merged_extra.update(config["extra"])
+        objective = merged_extra.get("objective")
         if objective:
             extra_body["objective"] = objective
         if extra_body:
@@ -215,10 +218,13 @@ class AsyncSymRouterAdapter:
 
         # Inject symrouter_metadata and objective via extra_body
         extra_body: dict[str, Any] = {}
-        metadata = self._build_symrouter_metadata()
+        metadata = self._build_symrouter_metadata(config)
         if metadata:
             extra_body["symgateway_metadata"] = metadata
-        objective = (self._config.extra or {}).get("objective")
+        merged_extra = dict(self._config.extra or {})
+        if config and config.get("extra"):
+            merged_extra.update(config["extra"])
+        objective = merged_extra.get("objective")
         if objective:
             extra_body["objective"] = objective
         if extra_body:
@@ -339,10 +345,13 @@ class AsyncSymRouterAdapter:
 
         # Inject symrouter_metadata and objective via extra_body
         extra_body: dict[str, Any] = {}
-        metadata = self._build_symrouter_metadata()
+        metadata = self._build_symrouter_metadata(config)
         if metadata:
             extra_body["symgateway_metadata"] = metadata
-        objective = (self._config.extra or {}).get("objective")
+        merged_extra = dict(self._config.extra or {})
+        if config and config.get("extra"):
+            merged_extra.update(config["extra"])
+        objective = merged_extra.get("objective")
         if objective:
             extra_body["objective"] = objective
         if extra_body:
@@ -377,17 +386,24 @@ class AsyncSymRouterAdapter:
 
         return result
 
-    def _build_symrouter_metadata(self) -> dict[str, Any] | None:
+    def _build_symrouter_metadata(self, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """
         Build symrouter_metadata dict from config.extra.
 
         Extracts end_customer_id, workflow_id, and tags from the
-        provider config's extra dict.
+        provider config's extra dict, with per-request overrides
+        from the config dict's ``extra`` key.
+
+        Args:
+            config: Optional per-request config dict. If it contains
+                an ``extra`` key, those values override provider defaults.
 
         Returns:
             Metadata dict or None if no metadata fields are present
         """
-        extra = self._config.extra or {}
+        extra = dict(self._config.extra or {})
+        if config and config.get("extra"):
+            extra.update(config["extra"])
         metadata: dict[str, Any] = {}
 
         if "end_customer_id" in extra:
