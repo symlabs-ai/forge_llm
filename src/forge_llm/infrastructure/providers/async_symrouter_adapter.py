@@ -515,8 +515,15 @@ class AsyncSymRouterAdapter:
         if self._client is None:
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(
-                api_key=self._config.api_key,
-                base_url=self._config.base_url or SYMROUTER_DEFAULT_BASE_URL,
-            )
+            kwargs: dict[str, Any] = {
+                "api_key": self._config.api_key,
+                "base_url": self._config.base_url or SYMROUTER_DEFAULT_BASE_URL,
+            }
+
+            # Inject X-Project-Slug header when project_slug is in extra
+            project_slug = (self._config.extra or {}).get("project_slug")
+            if project_slug:
+                kwargs["default_headers"] = {"X-Project-Slug": project_slug}
+
+            self._client = AsyncOpenAI(**kwargs)
         return self._client
