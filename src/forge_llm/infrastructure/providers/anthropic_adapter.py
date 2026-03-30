@@ -100,6 +100,8 @@ class AnthropicAdapter:
         max_tokens = (config or {}).get("max_tokens", 4096)
         tools = (config or {}).get("tools")
 
+        prompt_caching = (config or {}).get("prompt_caching", False)
+
         # Extract system messages and non-system messages
         system_prompt, filtered_messages = self._extract_system_prompt(messages)
 
@@ -109,6 +111,7 @@ class AnthropicAdapter:
             message_count=len(filtered_messages),
             has_system=system_prompt is not None,
             has_tools=tools is not None,
+            prompt_caching=prompt_caching,
         )
 
         # Build request params
@@ -118,7 +121,12 @@ class AnthropicAdapter:
             "messages": filtered_messages,
         }
         if system_prompt:
-            request_params["system"] = system_prompt
+            if prompt_caching:
+                request_params["system"] = self._system_with_cache_control(system_prompt)
+            else:
+                request_params["system"] = system_prompt
+        if prompt_caching:
+            self._apply_message_cache_control(request_params["messages"])
         if tools:
             request_params["tools"] = self._convert_tools_to_anthropic(tools)
 
@@ -185,6 +193,7 @@ class AnthropicAdapter:
         model = (config or {}).get("model") or self._config.model or "claude-3-sonnet-20240229"
         max_tokens = (config or {}).get("max_tokens", 4096)
         tools = (config or {}).get("tools")
+        prompt_caching = (config or {}).get("prompt_caching", False)
 
         # Extract system messages and non-system messages
         system_prompt, filtered_messages = self._extract_system_prompt(messages)
@@ -195,6 +204,7 @@ class AnthropicAdapter:
             message_count=len(filtered_messages),
             has_tools=tools is not None,
             has_system=system_prompt is not None,
+            prompt_caching=prompt_caching,
         )
 
         # Build request params
@@ -204,7 +214,12 @@ class AnthropicAdapter:
             "messages": filtered_messages,
         }
         if system_prompt:
-            request_params["system"] = system_prompt
+            if prompt_caching:
+                request_params["system"] = self._system_with_cache_control(system_prompt)
+            else:
+                request_params["system"] = system_prompt
+        if prompt_caching:
+            self._apply_message_cache_control(request_params["messages"])
         if tools:
             # Convert OpenAI format tools to Anthropic format
             request_params["tools"] = self._convert_tools_to_anthropic(tools)
@@ -505,6 +520,55 @@ class AnthropicAdapter:
                     "input_schema": func.get("parameters", {"type": "object"}),
                 })
         return anthropic_tools
+
+    def _system_with_cache_control(self, system_prompt: str) -> list[dict[str, Any]]:
+        """Convert system prompt string to content block list with cache_control.
+
+        Returns the system prompt as a list with a single text block that has
+        ``cache_control: {"type": "ephemeral"}`` set, enabling Anthropic prompt
+        caching on the system prompt.
+        """
+        return [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+    def _apply_message_cache_control(
+        self, messages: list[dict[str, Any]]
+    ) -> None:
+        """Add cache_control to the penultimate message in-place.
+
+        The Anthropic prompt caching docs recommend placing a cache breakpoint
+        on the *penultimate* user turn so that the entire prefix up to that
+        point can be cached across requests.
+
+        If the message content is a plain string it is converted to a content
+        block list so that ``cache_control`` can be attached to the last block.
+        """
+        if len(messages) < 2:
+            return
+
+        target = messages[-2]
+
+        content = target.get("content")
+
+        # String content -> convert to block list
+        if isinstance(content, str):
+            target["content"] = [
+                {
+                    "type": "text",
+                    "text": content,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+        elif isinstance(content, list) and content:
+            # Attach cache_control to the last block
+            last_block = content[-1]
+            if isinstance(last_block, dict):
+                last_block["cache_control"] = {"type": "ephemeral"}
 
     def _get_client(self) -> Anthropic:
         """Get or create Anthropic client."""

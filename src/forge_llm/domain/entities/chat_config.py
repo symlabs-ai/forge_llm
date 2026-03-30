@@ -23,6 +23,10 @@ class ChatConfig:
                Use this to pass native function calling tools per-request
                without requiring ToolRegistry or ToolDefinition objects.
                These are passed directly to the provider without conversion.
+        prompt_caching: Enable Anthropic prompt caching. When True, the
+               Anthropic adapter emits cache_control breakpoints on the
+               system prompt and penultimate message. Default False.
+               Only affects Anthropic providers; ignored by others.
     """
 
     model: str | None = None
@@ -33,6 +37,7 @@ class ChatConfig:
     stream: bool = False
     tools: list[dict[str, Any]] | None = None
     extra: dict[str, Any] | None = None
+    prompt_caching: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict, omitting None values."""
@@ -54,6 +59,8 @@ class ChatConfig:
             result["tools"] = self.tools
         if self.extra is not None:
             result["extra"] = self.extra
+        if self.prompt_caching:
+            result["prompt_caching"] = self.prompt_caching
 
         return result
 

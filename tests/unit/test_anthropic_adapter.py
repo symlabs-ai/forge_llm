@@ -238,3 +238,177 @@ class TestAnthropicMessageConversion:
         converted = adapter._convert_messages_to_anthropic(messages)
 
         assert converted == messages
+
+
+class TestPromptCaching:
+    """Tests for Anthropic prompt caching feature."""
+
+    def _make_adapter(self):
+        config = ProviderConfig(provider="anthropic", api_key="test-key")
+        return AnthropicAdapter(config)
+
+    # -- _system_with_cache_control --
+
+    def test_system_with_cache_control_returns_content_block_list(self):
+        """System prompt is wrapped in a content block with cache_control."""
+        adapter = self._make_adapter()
+        result = adapter._system_with_cache_control("You are a helpful assistant.")
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "text"
+        assert result[0]["text"] == "You are a helpful assistant."
+        assert result[0]["cache_control"] == {"type": "ephemeral"}
+
+    # -- _apply_message_cache_control --
+
+    def test_apply_cache_control_to_penultimate_string_message(self):
+        """String content in penultimate message is converted to block with cache_control."""
+        adapter = self._make_adapter()
+        messages = [
+            {"role": "user", "content": "First message"},
+            {"role": "assistant", "content": "Response"},
+            {"role": "user", "content": "Second message"},
+        ]
+
+        adapter._apply_message_cache_control(messages)
+
+        # Penultimate is messages[-2] = the assistant "Response"
+        target = messages[-2]
+        assert isinstance(target["content"], list)
+        assert len(target["content"]) == 1
+        assert target["content"][0]["type"] == "text"
+        assert target["content"][0]["text"] == "Response"
+        assert target["content"][0]["cache_control"] == {"type": "ephemeral"}
+
+    def test_apply_cache_control_to_penultimate_list_message(self):
+        """List content in penultimate message gets cache_control on last block."""
+        adapter = self._make_adapter()
+        messages = [
+            {"role": "user", "content": [
+                {"type": "text", "text": "block one"},
+                {"type": "text", "text": "block two"},
+            ]},
+            {"role": "user", "content": "Last message"},
+        ]
+
+        adapter._apply_message_cache_control(messages)
+
+        target = messages[-2]
+        assert isinstance(target["content"], list)
+        # cache_control only on last block
+        assert "cache_control" not in target["content"][0]
+        assert target["content"][1]["cache_control"] == {"type": "ephemeral"}
+
+    def test_apply_cache_control_skipped_for_single_message(self):
+        """No cache_control when there's only one message (no penultimate)."""
+        adapter = self._make_adapter()
+        messages = [{"role": "user", "content": "Only message"}]
+
+        adapter._apply_message_cache_control(messages)
+
+        # Message should be unmodified
+        assert messages[0]["content"] == "Only message"
+
+    # -- Integration: send() with prompt_caching --
+
+    def test_send_with_prompt_caching_sets_system_and_message_cache(self):
+        """send() with prompt_caching=True should set cache_control on system and penultimate."""
+        mock_client = MagicMock()
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock()]
+        mock_response.content[0].text = "Cached response"
+        mock_response.role = "assistant"
+        mock_response.model = "claude-3-sonnet-20240229"
+        mock_response.usage.input_tokens = 10
+        mock_response.usage.output_tokens = 5
+
+        mock_client.messages.create.return_value = mock_response
+
+        adapter = self._make_adapter()
+        adapter._client = mock_client
+
+        messages = [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        adapter.send(messages, config={"prompt_caching": True})
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+
+        # System should be content block list with cache_control
+        assert isinstance(call_kwargs["system"], list)
+        assert call_kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
+
+        # Penultimate message (assistant "Hi!") should have cache_control
+        penultimate = call_kwargs["messages"][-2]
+        if isinstance(penultimate["content"], list):
+            assert penultimate["content"][-1]["cache_control"] == {"type": "ephemeral"}
+        else:
+            pytest.fail("Penultimate content should be a list after cache control")
+
+    def test_send_without_prompt_caching_leaves_system_as_string(self):
+        """send() without prompt_caching keeps system as plain string."""
+        mock_client = MagicMock()
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock()]
+        mock_response.content[0].text = "Normal response"
+        mock_response.role = "assistant"
+        mock_response.model = "claude-3-sonnet-20240229"
+        mock_response.usage.input_tokens = 10
+        mock_response.usage.output_tokens = 5
+
+        mock_client.messages.create.return_value = mock_response
+
+        adapter = self._make_adapter()
+        adapter._client = mock_client
+
+        messages = [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        adapter.send(messages)
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+
+        # System should be plain string
+        assert isinstance(call_kwargs["system"], str)
+        assert call_kwargs["system"] == "You are helpful."
+
+    def test_send_default_prompt_caching_is_false(self):
+        """Default behavior: prompt_caching=False, no cache_control."""
+        mock_client = MagicMock()
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock()]
+        mock_response.content[0].text = "Response"
+        mock_response.role = "assistant"
+        mock_response.model = "claude-3-sonnet-20240229"
+        mock_response.usage.input_tokens = 5
+        mock_response.usage.output_tokens = 5
+
+        mock_client.messages.create.return_value = mock_response
+
+        adapter = self._make_adapter()
+        adapter._client = mock_client
+
+        messages = [
+            {"role": "system", "content": "System prompt."},
+            {"role": "user", "content": "Hi"},
+        ]
+
+        adapter.send(messages)
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        # System is plain string
+        assert isinstance(call_kwargs["system"], str)
+        # Single user message, no penultimate to cache (< 2 messages)
+        assert isinstance(call_kwargs["messages"][0]["content"], str)
