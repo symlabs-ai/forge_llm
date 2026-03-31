@@ -39,10 +39,12 @@ class AsyncOpenAITranscriptionAdapter(BaseAsyncTranscriptionAdapter):
         api_key: str | None = None,
         base_url: str | None = None,
         default_model: str = "whisper-1",
+        default_headers: dict[str, str] | None = None,
     ):
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self._base_url = base_url
         self._default_model = default_model
+        self._default_headers = default_headers
         self._client: AsyncOpenAI | None = None
 
     @property
@@ -62,5 +64,7 @@ class AsyncOpenAITranscriptionAdapter(BaseAsyncTranscriptionAdapter):
             kwargs: dict = {"api_key": self._api_key}
             if self._base_url:
                 kwargs["base_url"] = self._base_url
+            if self._default_headers:
+                kwargs["default_headers"] = self._default_headers
             self._client = AsyncOpenAI(**kwargs)
         return self._client
