@@ -221,18 +221,24 @@ def parse_response_output(response: Any) -> dict[str, Any]:
     content = response.output_text or ""
 
     usage = response.usage
+    usage_dict: dict[str, Any] = {
+        "prompt_tokens": usage.input_tokens if usage else 0,
+        "completion_tokens": usage.output_tokens if usage else 0,
+        "total_tokens": (
+            (usage.input_tokens + usage.output_tokens) if usage else 0
+        ),
+    }
+    # Responses API surfaces prefix-cache hits via input_tokens_details.cached_tokens
+    details = getattr(usage, "input_tokens_details", None) if usage else None
+    cached = getattr(details, "cached_tokens", None) if details is not None else None
+    if cached:
+        usage_dict["prompt_tokens_details"] = {"cached_tokens": cached}
     result: dict[str, Any] = {
         "content": content,
         "role": "assistant",
         "model": response.model,
         "provider": "openai",
-        "usage": {
-            "prompt_tokens": usage.input_tokens if usage else 0,
-            "completion_tokens": usage.output_tokens if usage else 0,
-            "total_tokens": (
-                (usage.input_tokens + usage.output_tokens) if usage else 0
-            ),
-        },
+        "usage": usage_dict,
     }
 
     tool_calls = _extract_tool_calls(response.output)

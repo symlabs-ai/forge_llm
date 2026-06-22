@@ -452,6 +452,7 @@ class SymRouterAdapter:
             kwargs: dict[str, Any] = {
                 "api_key": self._config.api_key,
                 "base_url": self._config.base_url or SYMROUTER_DEFAULT_BASE_URL,
+                "max_retries": self._config.max_retries,
             }
 
             # Inject X-Project-Slug header when project_slug is in extra

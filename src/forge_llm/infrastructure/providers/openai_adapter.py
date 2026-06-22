@@ -27,6 +27,60 @@ if TYPE_CHECKING:
     from openai import OpenAI
 
 
+# Keys in ProviderConfig.extra / ChatConfig.extra that are consumed by the
+# Responses API path (handled elsewhere) or by symgateway routing. They must
+# not leak into ``extra_body`` on the Completions path.
+_RESERVED_EXTRA_KEYS = frozenset({
+    "reasoning_effort",
+    "reasoning",
+    "max_output_tokens",
+    "store",
+    "metadata",
+    "project_slug",  # symgateway-only routing hint
+})
+
+
+def _resolve_extra_body(
+    provider_extra: dict[str, Any] | None,
+    request_config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build the ``extra_body`` dict forwarded to the OpenAI SDK.
+
+    Merges (in ascending priority):
+      1. ``ProviderConfig.extra`` (minus reserved / routing keys)
+      2. A per-request ``extra_body`` key in the request config
+      3. ``ChatConfig.extra`` passed as ``request_config["extra"]`` (minus
+         reserved keys)
+
+    The result is suitable for ``client.chat.completions.create(extra_body=...)``
+    and lets OpenAI-compatible backends (vLLM, SGLang, LM Studio, ...)
+    receive vendor-specific knobs such as
+    ``{"chat_template_kwargs": {"enable_thinking": false}}`` or
+    ``{"guided_json": ...}`` without the SDK rejecting them.
+    """
+    merged: dict[str, Any] = {}
+
+    if provider_extra:
+        for key, value in provider_extra.items():
+            if key in _RESERVED_EXTRA_KEYS:
+                continue
+            merged[key] = value
+
+    if request_config:
+        explicit = request_config.get("extra_body")
+        if isinstance(explicit, dict):
+            merged.update(explicit)
+
+        request_extra = request_config.get("extra")
+        if isinstance(request_extra, dict):
+            for key, value in request_extra.items():
+                if key in _RESERVED_EXTRA_KEYS:
+                    continue
+                merged[key] = value
+
+    return merged
+
+
 class OpenAIAdapter:
     """
     Adapter for OpenAI chat completions API.
@@ -210,6 +264,13 @@ class OpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        tool_choice = (config or {}).get("tool_choice")
+        if tool_choice is not None:
+            request_params["tool_choice"] = tool_choice
+
+        extra_body = _resolve_extra_body(self._config.extra, config)
+        if extra_body:
+            request_params["extra_body"] = extra_body
 
         response = client.chat.completions.create(**request_params)
 
@@ -272,6 +333,13 @@ class OpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
+        tool_choice = (config or {}).get("tool_choice")
+        if tool_choice is not None:
+            request_params["tool_choice"] = tool_choice
+
+        extra_body = _resolve_extra_body(self._config.extra, config)
+        if extra_body:
+            request_params["extra_body"] = extra_body
 
         response = client.chat.completions.create(**request_params)
 
@@ -640,9 +708,16 @@ class OpenAIAdapter:
         return converted
 
     def _get_client(self) -> OpenAI:
-        """Get or create OpenAI client."""
+        """Get or create OpenAI client.
+
+        Honors ``ProviderConfig.base_url`` so the adapter can point at any
+        OpenAI-compatible endpoint (vLLM, LM Studio, Together, etc.).
+        """
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(api_key=self._config.api_key)
+            kwargs: dict[str, Any] = {"api_key": self._config.api_key}
+            if self._config.base_url:
+                kwargs["base_url"] = self._config.base_url
+            self._client = OpenAI(**kwargs)
         return self._client

@@ -794,3 +794,49 @@ class TestAsyncFallbackToResponses:
 
         with pytest.raises(AuthError):
             await adapter.send([{"role": "user", "content": "Hi"}])
+
+
+class TestChatUsageDict:
+    """Cover _chat_usage_dict cache-metric propagation (Completions path)."""
+
+    def test_preserves_cached_tokens(self):
+        from forge_llm.infrastructure.providers.async_openai_adapter import (
+            _chat_usage_dict,
+        )
+
+        usage = MagicMock()
+        usage.prompt_tokens = 11500
+        usage.completion_tokens = 20
+        usage.total_tokens = 11520
+        usage.prompt_tokens_details.cached_tokens = 11264
+
+        result = _chat_usage_dict(usage)
+
+        assert result["prompt_tokens"] == 11500
+        assert result["prompt_tokens_details"]["cached_tokens"] == 11264
+
+    def test_omits_details_without_cache_hit(self):
+        from forge_llm.infrastructure.providers.async_openai_adapter import (
+            _chat_usage_dict,
+        )
+
+        usage = MagicMock()
+        usage.prompt_tokens = 100
+        usage.completion_tokens = 10
+        usage.total_tokens = 110
+        usage.prompt_tokens_details = None
+
+        result = _chat_usage_dict(usage)
+
+        assert "prompt_tokens_details" not in result
+
+    def test_none_usage_returns_zeros(self):
+        from forge_llm.infrastructure.providers.async_openai_adapter import (
+            _chat_usage_dict,
+        )
+
+        assert _chat_usage_dict(None) == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }

@@ -20,9 +20,32 @@ from forge_llm.infrastructure.providers._openai_responses import (
     parse_response_output,
     should_fallback_to_responses,
 )
+from forge_llm.infrastructure.providers.openai_adapter import _resolve_extra_body
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
+
+
+def _chat_usage_dict(usage: Any) -> dict[str, Any]:
+    """Build a Chat Completions usage dict, preserving cache metrics.
+
+    OpenAI reports prefix-cache hits via ``usage.prompt_tokens_details.cached_tokens``
+    (automatic for prompts >= 1024 tokens). Surface it so downstream consumers can
+    measure cache hit rate. Returns zeros when ``usage`` is absent and only adds the
+    ``prompt_tokens_details`` block when there was an actual cache hit.
+    """
+    if usage is None:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    data: dict[str, Any] = {
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "total_tokens": usage.total_tokens,
+    }
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = getattr(details, "cached_tokens", None) if details is not None else None
+    if cached:
+        data["prompt_tokens_details"] = {"cached_tokens": cached}
+    return data
 
 
 class AsyncOpenAIAdapter:
@@ -214,6 +237,10 @@ class AsyncOpenAIAdapter:
         if tool_choice is not None:
             request_params["tool_choice"] = tool_choice
 
+        extra_body = _resolve_extra_body(self._config.extra, config)
+        if extra_body:
+            request_params["extra_body"] = extra_body
+
         response = await client.chat.completions.create(**request_params)
 
         choice = response.choices[0]
@@ -224,11 +251,7 @@ class AsyncOpenAIAdapter:
             "role": choice.message.role,
             "model": response.model,
             "provider": "openai",
-            "usage": {
-                "prompt_tokens": usage.prompt_tokens if usage else 0,
-                "completion_tokens": usage.completion_tokens if usage else 0,
-                "total_tokens": usage.total_tokens if usage else 0,
-            },
+            "usage": _chat_usage_dict(usage),
         }
 
         if choice.message.tool_calls:
@@ -284,6 +307,10 @@ class AsyncOpenAIAdapter:
         if include_usage:
             request_params["stream_options"] = {"include_usage": True}
 
+        extra_body = _resolve_extra_body(self._config.extra, config)
+        if extra_body:
+            request_params["extra_body"] = extra_body
+
         response = await client.chat.completions.create(**request_params)
 
         tool_calls_accumulator: dict[int, dict[str, Any]] = {}
@@ -296,11 +323,7 @@ class AsyncOpenAIAdapter:
                     yield {
                         "content": "",
                         "provider": "openai",
-                        "usage": {
-                            "prompt_tokens": chunk.usage.prompt_tokens,
-                            "completion_tokens": chunk.usage.completion_tokens,
-                            "total_tokens": chunk.usage.total_tokens,
-                        },
+                        "usage": _chat_usage_dict(chunk.usage),
                     }
                 continue
 
@@ -341,11 +364,7 @@ class AsyncOpenAIAdapter:
                     "finish_reason": "tool_calls",
                 }
                 if include_usage and chunk.usage:
-                    payload["usage"] = {
-                        "prompt_tokens": chunk.usage.prompt_tokens,
-                        "completion_tokens": chunk.usage.completion_tokens,
-                        "total_tokens": chunk.usage.total_tokens,
-                    }
+                    payload["usage"] = _chat_usage_dict(chunk.usage)
                 yield payload
             elif finish_reason:
                 payload = {
@@ -354,11 +373,7 @@ class AsyncOpenAIAdapter:
                     "finish_reason": finish_reason,
                 }
                 if include_usage and chunk.usage:
-                    payload["usage"] = {
-                        "prompt_tokens": chunk.usage.prompt_tokens,
-                        "completion_tokens": chunk.usage.completion_tokens,
-                        "total_tokens": chunk.usage.total_tokens,
-                    }
+                    payload["usage"] = _chat_usage_dict(chunk.usage)
                 yield payload
 
     # ── Responses path (new) ───────────────────────────────────────────
@@ -471,11 +486,17 @@ class AsyncOpenAIAdapter:
                 # Responses API returns usage in response.completed event
                 if include_usage and hasattr(event, "response") and hasattr(event.response, "usage"):
                     usage = event.response.usage
-                    payload["usage"] = {
+                    usage_payload: dict[str, Any] = {
                         "prompt_tokens": getattr(usage, "input_tokens", 0),
                         "completion_tokens": getattr(usage, "output_tokens", 0),
                         "total_tokens": getattr(usage, "input_tokens", 0) + getattr(usage, "output_tokens", 0),
                     }
+                    # Responses API surfaces cache hits via input_tokens_details.cached_tokens
+                    details = getattr(usage, "input_tokens_details", None)
+                    cached = getattr(details, "cached_tokens", None) if details is not None else None
+                    if cached:
+                        usage_payload["prompt_tokens_details"] = {"cached_tokens": cached}
+                    payload["usage"] = usage_payload
                 yield payload
 
     # ── Image generation ─────────────────────────────────────────────
@@ -598,9 +619,16 @@ class AsyncOpenAIAdapter:
         return converted
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create async OpenAI client."""
+        """Get or create async OpenAI client.
+
+        Honors ``ProviderConfig.base_url`` so the adapter can point at any
+        OpenAI-compatible endpoint (vLLM, LM Studio, Together, etc.).
+        """
         if self._client is None:
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(api_key=self._config.api_key)
+            kwargs: dict[str, Any] = {"api_key": self._config.api_key}
+            if self._config.base_url:
+                kwargs["base_url"] = self._config.base_url
+            self._client = AsyncOpenAI(**kwargs)
         return self._client
