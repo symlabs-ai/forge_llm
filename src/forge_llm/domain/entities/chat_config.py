@@ -3,7 +3,7 @@ ChatConfig - Configuration for chat operations.
 
 Holds parameters for a single chat request.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -23,6 +23,8 @@ class ChatConfig:
                Use this to pass native function calling tools per-request
                without requiring ToolRegistry or ToolDefinition objects.
                These are passed directly to the provider without conversion.
+        tool_choice: Optional provider-native tool selection policy.
+        parallel_tool_calls: Whether the provider may emit parallel tool calls.
         prompt_caching: Enable Anthropic prompt caching. When True, the
                Anthropic adapter emits cache_control breakpoints on the
                system prompt and penultimate message. Default False.
@@ -36,6 +38,8 @@ class ChatConfig:
     stop: list[str] | None = None
     stream: bool = False
     tools: list[dict[str, Any]] | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    parallel_tool_calls: bool | None = None
     extra: dict[str, Any] | None = None
     prompt_caching: bool = False
 
@@ -57,6 +61,10 @@ class ChatConfig:
             result["stream"] = self.stream
         if self.tools is not None:
             result["tools"] = self.tools
+        if self.tool_choice is not None:
+            result["tool_choice"] = self.tool_choice
+        if self.parallel_tool_calls is not None:
+            result["parallel_tool_calls"] = self.parallel_tool_calls
         if self.extra is not None:
             result["extra"] = self.extra
         if self.prompt_caching:

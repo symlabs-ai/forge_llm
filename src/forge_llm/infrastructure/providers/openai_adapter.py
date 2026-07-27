@@ -14,7 +14,6 @@ from forge_llm.domain import (
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.logging import LogService
 from forge_llm.infrastructure.providers._openai_responses import (
-    RESPONSES_ONLY_MODELS,
     convert_messages_for_responses,
     convert_tools_for_responses,
     get_extra_params,
@@ -78,7 +77,71 @@ def _resolve_extra_body(
                     continue
                 merged[key] = value
 
+        # These have first-class OpenAI SDK parameters. When the request
+        # explicitly sets them, never also send a conflicting vendor-body
+        # copy inherited from ProviderConfig.extra or ChatConfig.extra.
+        for key in ("tool_choice", "parallel_tool_calls"):
+            if request_config.get(key) is not None:
+                merged.pop(key, None)
+
     return merged
+
+
+def _apply_chat_completion_config(
+    request_params: dict[str, Any],
+    config: dict[str, Any] | None,
+) -> None:
+    """Forward supported Chat Completions parameters without dropping false/zero."""
+    if not config:
+        return
+
+    for key in (
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "stop",
+        "tool_choice",
+        "parallel_tool_calls",
+    ):
+        value = config.get(key)
+        if value is not None:
+            request_params[key] = value
+
+
+def _extract_ephemeral_reasoning(message: Any) -> dict[str, Any]:
+    """Extract replay-only reasoning fields from an OpenAI-compatible message.
+
+    The OpenAI SDK retains non-standard response fields in ``model_extra``.
+    SGLang and similar servers may also expose them as direct attributes.
+    Only JSON-wire-compatible opaque state is accepted; provider objects are
+    never retained or returned as metadata.
+    """
+    if isinstance(message, dict):
+        message_extra: dict[str, Any] = message
+    else:
+        extra = getattr(message, "model_extra", None)
+        message_extra = extra if isinstance(extra, dict) else {}
+
+    reasoning_content = message_extra.get("reasoning_content")
+    if not isinstance(reasoning_content, str):
+        candidate = getattr(message, "reasoning_content", None)
+        reasoning_content = candidate if isinstance(candidate, str) else None
+
+    reasoning_state = message_extra.get("reasoning_state")
+    if not isinstance(reasoning_state, str | int | float | bool | dict | list):
+        candidate = getattr(message, "reasoning_state", None)
+        reasoning_state = (
+            candidate
+            if isinstance(candidate, str | int | float | bool | dict | list)
+            else None
+        )
+
+    result: dict[str, Any] = {}
+    if reasoning_content is not None:
+        result["reasoning_content"] = reasoning_content
+    if reasoning_state is not None:
+        result["reasoning_state"] = reasoning_state
+    return result
 
 
 class OpenAIAdapter:
@@ -194,7 +257,7 @@ class OpenAIAdapter:
                 self._logger.warning(
                     "Completions API rejected model, falling back to Responses API",
                     model=model,
-                    error=str(exc),
+                    error_type=type(exc).__name__,
                 )
                 return self._send_via_responses(messages, config)
             raise
@@ -229,7 +292,7 @@ class OpenAIAdapter:
                     self._logger.warning(
                         "Completions API rejected model, falling back to Responses API (stream)",
                         model=model,
-                        error=str(exc),
+                        error_type=type(exc).__name__,
                     )
                     yield from self._stream_via_responses(messages, config)
                 else:
@@ -264,9 +327,7 @@ class OpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
-        tool_choice = (config or {}).get("tool_choice")
-        if tool_choice is not None:
-            request_params["tool_choice"] = tool_choice
+        _apply_chat_completion_config(request_params, config)
 
         extra_body = _resolve_extra_body(self._config.extra, config)
         if extra_body:
@@ -287,7 +348,13 @@ class OpenAIAdapter:
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "total_tokens": usage.total_tokens if usage else 0,
             },
+            "finish_reason": (
+                choice.finish_reason
+                if isinstance(getattr(choice, "finish_reason", None), str)
+                else None
+            ),
         }
+        result.update(_extract_ephemeral_reasoning(choice.message))
 
         if choice.message.tool_calls:
             result["tool_calls"] = [
@@ -301,7 +368,8 @@ class OpenAIAdapter:
                 }
                 for tc in choice.message.tool_calls
             ]
-            result["finish_reason"] = "tool_calls"
+            if result["finish_reason"] is None:
+                result["finish_reason"] = "tool_calls"
 
         return result
 
@@ -333,9 +401,7 @@ class OpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
-        tool_choice = (config or {}).get("tool_choice")
-        if tool_choice is not None:
-            request_params["tool_choice"] = tool_choice
+        _apply_chat_completion_config(request_params, config)
 
         extra_body = _resolve_extra_body(self._config.extra, config)
         if extra_body:
@@ -418,6 +484,10 @@ class OpenAIAdapter:
             request_params["instructions"] = instructions
         if tools:
             request_params["tools"] = convert_tools_for_responses(tools)
+        if config:
+            for key in ("tool_choice", "parallel_tool_calls"):
+                if config.get(key) is not None:
+                    request_params[key] = config[key]
 
         extra = get_extra_params(self._config.extra, self._logger)
         request_params.update(extra)
@@ -453,6 +523,10 @@ class OpenAIAdapter:
             request_params["instructions"] = instructions
         if tools:
             request_params["tools"] = convert_tools_for_responses(tools)
+        if config:
+            for key in ("tool_choice", "parallel_tool_calls"):
+                if config.get(key) is not None:
+                    request_params[key] = config[key]
 
         extra = get_extra_params(self._config.extra, self._logger)
         request_params.update(extra)

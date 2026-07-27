@@ -6,7 +6,7 @@ Per ADR-005, this is a domain entity used for input, history, and output.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -29,6 +29,10 @@ class ChatMessage:
         name: Optional name (for tool results or named users)
         tool_calls: Tool calls made by assistant (OpenAI format)
         tool_call_id: ID of tool call this message responds to
+        reasoning_content: Ephemeral model reasoning required by some
+            OpenAI-compatible chat templates for multi-turn tool use.
+        reasoning_state: Ephemeral opaque provider state associated with
+            reasoning. It is only emitted by ``to_wire_dict()``.
     """
 
     role: Literal["system", "user", "assistant", "tool"]
@@ -36,12 +40,28 @@ class ChatMessage:
     name: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
     tool_call_id: str | None = None
+    reasoning_content: str | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+        metadata={"ephemeral": True},
+    )
+    reasoning_state: Any = field(
+        default=None,
+        repr=False,
+        compare=False,
+        metadata={"ephemeral": True},
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert message to dict for API calls.
+        Convert message to a persistable, diagnostic-safe dict.
 
         Handles both simple string content and multimodal content blocks.
+        Ephemeral reasoning fields are intentionally omitted. Provider calls
+        must use :meth:`to_wire_dict` instead. ``dataclasses.asdict`` is not a
+        supported persistence API for this entity because it bypasses these
+        field-level serialization rules.
 
         Returns:
             Dict with non-None fields only
@@ -71,6 +91,23 @@ class ChatMessage:
 
         if self.tool_call_id is not None:
             result["tool_call_id"] = self.tool_call_id
+
+        return result
+
+    def to_wire_dict(self) -> dict[str, Any]:
+        """Convert the message to the provider wire representation.
+
+        This is the only serialization path that emits ephemeral reasoning.
+        Keeping it separate from :meth:`to_dict` prevents session exports,
+        diagnostics, and ordinary persistence from retaining model reasoning.
+        """
+        result = self.to_dict()
+
+        if self.role == "assistant" and self.reasoning_content is not None:
+            result["reasoning_content"] = self.reasoning_content
+
+        if self.role == "assistant" and self.reasoning_state is not None:
+            result["reasoning_state"] = self.reasoning_state
 
         return result
 
@@ -138,6 +175,21 @@ class ChatMessage:
         )
 
     @classmethod
+    def from_wire_dict(cls, data: dict[str, Any]) -> ChatMessage:
+        """Create a message from a provider wire representation.
+
+        Unlike :meth:`from_dict`, this explicit ingress path restores
+        ephemeral reasoning for in-memory round trips.
+        """
+        message = cls.from_dict(data)
+        if message.role == "assistant":
+            reasoning_content = data.get("reasoning_content")
+            if isinstance(reasoning_content, str):
+                message.reasoning_content = reasoning_content
+            message.reasoning_state = data.get("reasoning_state")
+        return message
+
+    @classmethod
     def user(cls, content: str, name: str | None = None) -> ChatMessage:
         """Create a user message."""
         return cls(role="user", content=content, name=name)
@@ -147,9 +199,17 @@ class ChatMessage:
         cls,
         content: str | None,
         tool_calls: list[dict[str, Any]] | None = None,
+        reasoning_content: str | None = None,
+        reasoning_state: Any = None,
     ) -> ChatMessage:
         """Create an assistant message."""
-        return cls(role="assistant", content=content, tool_calls=tool_calls)
+        return cls(
+            role="assistant",
+            content=content,
+            tool_calls=tool_calls,
+            reasoning_content=reasoning_content,
+            reasoning_state=reasoning_state,
+        )
 
     @classmethod
     def system(cls, content: str) -> ChatMessage:

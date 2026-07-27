@@ -227,5 +227,5 @@ class ChatSession:
         return base_tokens + content_tokens
 
     def to_dict_list(self) -> list[dict[str, Any]]:
-        """Convert messages to list of dicts for API calls."""
+        """Export persistable message dicts with ephemeral reasoning omitted."""
         return [m.to_dict() for m in self._messages]

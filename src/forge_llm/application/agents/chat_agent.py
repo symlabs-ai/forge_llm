@@ -182,8 +182,9 @@ class ChatAgent:
             message_count=len(msg_list),
         )
 
-        # Convert to dict format for provider
-        messages_dict = [m.to_dict() for m in msg_list]
+        # Use the explicit wire path so ephemeral provider state can be
+        # replayed without leaking into persistence/diagnostic serializers.
+        messages_dict = [m.to_wire_dict() for m in msg_list]
 
         # Build config with tools
         config_dict = config.to_dict() if config else {}
@@ -215,6 +216,8 @@ class ChatAgent:
 
             # Add assistant message with tool calls
             msg_list.append(response.message)
+            if session is not None:
+                session.add_message(response.message)
 
             # Add tool results as messages
             for tr in tool_results:
@@ -224,9 +227,11 @@ class ChatAgent:
                     tool_call_id=tr.tool_call_id,
                 )
                 msg_list.append(tool_msg)
+                if session is not None:
+                    session.add_message(tool_msg)
 
             # Call provider again with tool results
-            messages_dict = [m.to_dict() for m in msg_list]
+            messages_dict = [m.to_wire_dict() for m in msg_list]
             result = self._call_provider(provider, messages_dict, config_dict)
             response = self._build_response(result)
 
@@ -337,7 +342,7 @@ class ChatAgent:
         auto_execute_tools: bool,
     ) -> Generator[ChatChunk, None, None]:
         """Stream with tool call handling."""
-        messages_dict = [m.to_dict() for m in msg_list]
+        messages_dict = [m.to_wire_dict() for m in msg_list]
         full_content = ""
 
         for chunk_data in provider.stream(messages_dict, config=config_dict):
@@ -448,6 +453,9 @@ class ChatAgent:
             role=result.get("role", "assistant"),
             content=result.get("content"),
             tool_calls=result.get("tool_calls"),
+            tool_call_id=result.get("tool_call_id"),
+            reasoning_content=result.get("reasoning_content"),
+            reasoning_state=result.get("reasoning_state"),
         )
 
         usage_data = result.get("usage", {})

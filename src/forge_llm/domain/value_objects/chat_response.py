@@ -45,6 +45,16 @@ class ChatResponse:
         return self.message.tool_calls
 
     @property
+    def reasoning_content(self) -> str | None:
+        """Shortcut to ephemeral message reasoning."""
+        return self.message.reasoning_content
+
+    @property
+    def reasoning_state(self) -> Any:
+        """Shortcut to ephemeral opaque provider reasoning state."""
+        return self.message.reasoning_state
+
+    @property
     def model(self) -> str:
         """Shortcut to metadata model."""
         return self.metadata.model
@@ -58,6 +68,28 @@ class ChatResponse:
     def from_openai(cls, response: Any, provider: str = "openai") -> "ChatResponse":
         """Create from OpenAI response."""
         choice = response.choices[0]
+        reasoning_content = getattr(choice.message, "reasoning_content", None)
+        if not isinstance(reasoning_content, str):
+            message_extra = getattr(choice.message, "model_extra", None)
+            reasoning_content = (
+                message_extra.get("reasoning_content")
+                if isinstance(message_extra, dict)
+                else None
+            )
+        if not isinstance(reasoning_content, str):
+            reasoning_content = None
+
+        reasoning_state = getattr(choice.message, "reasoning_state", None)
+        if not isinstance(reasoning_state, str | int | float | bool | dict | list):
+            message_extra = getattr(choice.message, "model_extra", None)
+            reasoning_state = (
+                message_extra.get("reasoning_state")
+                if isinstance(message_extra, dict)
+                else None
+            )
+        if not isinstance(reasoning_state, str | int | float | bool | dict | list):
+            reasoning_state = None
+
         message = ChatMessage(
             role=choice.message.role,
             content=choice.message.content,
@@ -72,6 +104,8 @@ class ChatResponse:
                 }
                 for tc in (choice.message.tool_calls or [])
             ] if choice.message.tool_calls else None,
+            reasoning_content=reasoning_content,
+            reasoning_state=reasoning_state,
         )
         metadata = ResponseMetadata(
             model=response.model,

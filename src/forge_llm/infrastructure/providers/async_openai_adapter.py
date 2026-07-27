@@ -12,7 +12,6 @@ from forge_llm.domain import ProviderNotConfiguredError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.logging import LogService
 from forge_llm.infrastructure.providers._openai_responses import (
-    RESPONSES_ONLY_MODELS,
     convert_messages_for_responses,
     convert_tools_for_responses,
     get_extra_params,
@@ -20,7 +19,11 @@ from forge_llm.infrastructure.providers._openai_responses import (
     parse_response_output,
     should_fallback_to_responses,
 )
-from forge_llm.infrastructure.providers.openai_adapter import _resolve_extra_body
+from forge_llm.infrastructure.providers.openai_adapter import (
+    _apply_chat_completion_config,
+    _extract_ephemeral_reasoning,
+    _resolve_extra_body,
+)
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
@@ -159,7 +162,7 @@ class AsyncOpenAIAdapter:
                 self._logger.warning(
                     "Completions API rejected model, falling back to Responses API",
                     model=model,
-                    error=str(exc),
+                    error_type=type(exc).__name__,
                 )
                 return await self._send_via_responses(messages, config)
             raise
@@ -196,7 +199,7 @@ class AsyncOpenAIAdapter:
                     self._logger.warning(
                         "Completions API rejected model, falling back to Responses API (stream)",
                         model=model,
-                        error=str(exc),
+                        error_type=type(exc).__name__,
                     )
                     async for chunk in self._stream_via_responses(messages, config):
                         yield chunk
@@ -225,8 +228,6 @@ class AsyncOpenAIAdapter:
 
         converted_messages = self._convert_messages_for_openai(messages)
 
-        tool_choice = (config or {}).get("tool_choice")
-
         request_params: dict[str, Any] = {
             "model": model,
             "messages": converted_messages,
@@ -234,8 +235,7 @@ class AsyncOpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
-        if tool_choice is not None:
-            request_params["tool_choice"] = tool_choice
+        _apply_chat_completion_config(request_params, config)
 
         extra_body = _resolve_extra_body(self._config.extra, config)
         if extra_body:
@@ -252,7 +252,13 @@ class AsyncOpenAIAdapter:
             "model": response.model,
             "provider": "openai",
             "usage": _chat_usage_dict(usage),
+            "finish_reason": (
+                choice.finish_reason
+                if isinstance(getattr(choice, "finish_reason", None), str)
+                else None
+            ),
         }
+        result.update(_extract_ephemeral_reasoning(choice.message))
 
         if choice.message.tool_calls:
             result["tool_calls"] = [
@@ -266,7 +272,8 @@ class AsyncOpenAIAdapter:
                 }
                 for tc in choice.message.tool_calls
             ]
-            result["finish_reason"] = "tool_calls"
+            if result["finish_reason"] is None:
+                result["finish_reason"] = "tool_calls"
 
         return result
 
@@ -288,8 +295,6 @@ class AsyncOpenAIAdapter:
             has_tools=tools is not None,
         )
 
-        tool_choice = (config or {}).get("tool_choice")
-
         converted_messages = self._convert_messages_for_openai(messages)
 
         include_usage = (config or {}).get("include_usage", False)
@@ -302,8 +307,7 @@ class AsyncOpenAIAdapter:
         }
         if tools:
             request_params["tools"] = tools
-        if tool_choice is not None:
-            request_params["tool_choice"] = tool_choice
+        _apply_chat_completion_config(request_params, config)
         if include_usage:
             request_params["stream_options"] = {"include_usage": True}
 
@@ -405,6 +409,10 @@ class AsyncOpenAIAdapter:
             request_params["instructions"] = instructions
         if tools:
             request_params["tools"] = convert_tools_for_responses(tools)
+        if config:
+            for key in ("tool_choice", "parallel_tool_calls"):
+                if config.get(key) is not None:
+                    request_params[key] = config[key]
 
         extra = get_extra_params(self._config.extra, self._logger)
         request_params.update(extra)
@@ -441,6 +449,10 @@ class AsyncOpenAIAdapter:
             request_params["instructions"] = instructions
         if tools:
             request_params["tools"] = convert_tools_for_responses(tools)
+        if config:
+            for key in ("tool_choice", "parallel_tool_calls"):
+                if config.get(key) is not None:
+                    request_params[key] = config[key]
 
         extra = get_extra_params(self._config.extra, self._logger)
         request_params.update(extra)
