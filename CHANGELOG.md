@@ -5,6 +5,19 @@ All notable changes to ForgeLLM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.16] - 2026-07-28
+
+### Added
+- Preserve native reasoning and tool-history items across OpenAI Responses turns.
+
+### Fixed
+- Validate propagation of the configured SymRouter retry count.
+- Keep the exported package version aligned with release metadata.
+
+### Changed
+- Make CI installs reproducible from the committed lock file.
+- Block new Ruff violations with a no-regression baseline.
+
 ## [0.7.14] - 2026-03-31
 
 - feat: add default_headers support to AsyncOpenAITranscriptionAdapter
