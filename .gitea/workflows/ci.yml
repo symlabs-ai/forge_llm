@@ -13,11 +13,21 @@ jobs:
 
       - name: Setup
         run: |
-          poetry lock
-          poetry install --with dev --no-interaction
+          poetry check --lock
+          poetry install --with dev --no-interaction --sync
 
-      - name: Lint
-        run: poetry run ruff check . || true
+      - name: Lint (no regression)
+        env:
+          RUFF_BASELINE: "71"
+        run: |
+          set -euo pipefail
+          violations="$(poetry run ruff check . --output-format json --exit-zero | poetry run python -c 'import json, sys; print(len(json.load(sys.stdin)))')"
+          poetry run ruff check . --exit-zero
+          if (( violations > RUFF_BASELINE )); then
+            echo "Ruff regression: ${violations} violations; baseline is ${RUFF_BASELINE}."
+            exit 1
+          fi
+          echo "Ruff ratchet: ${violations}/${RUFF_BASELINE} violations."
 
       - name: Test
         run: poetry run pytest -x -q --ignore=tests/e2e --ignore=tests/live -m "not live"

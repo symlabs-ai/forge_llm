@@ -6,13 +6,12 @@ Tests use mocked OpenAI client (Sym Router uses OpenAI-compatible API).
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from forge_llm import ChatAgent, ChatMessage, ToolDefinition
 from forge_llm.domain import ProviderNotConfiguredError
 from forge_llm.domain.entities import ProviderConfig
 from forge_llm.infrastructure.providers.symrouter_adapter import (
-    SymRouterAdapter,
     SYMROUTER_DEFAULT_BASE_URL,
+    SymRouterAdapter,
 )
 
 
@@ -58,6 +57,7 @@ class TestSymRouterAdapter:
             mock_openai.assert_called_once_with(
                 api_key="sk-sym_test",
                 base_url=SYMROUTER_DEFAULT_BASE_URL,
+                max_retries=3,
             )
 
     def test_client_uses_custom_base_url(self):
@@ -66,6 +66,7 @@ class TestSymRouterAdapter:
             provider="symgateway",
             api_key="sk-sym_test",
             base_url="http://gateway:8010",
+            max_retries=5,
         )
         adapter = SymRouterAdapter(config)
 
@@ -74,6 +75,7 @@ class TestSymRouterAdapter:
             mock_openai.assert_called_once_with(
                 api_key="sk-sym_test",
                 base_url="http://gateway:8010",
+                max_retries=5,
             )
 
     def test_send_returns_response_dict(self):
